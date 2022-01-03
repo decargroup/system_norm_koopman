@@ -8,3 +8,5 @@ pandas
 scikit-learn
 git+https://github.com/scikit-optimize/scikit-optimize.git
 mosek
+daltonlens
+memory-profiler
