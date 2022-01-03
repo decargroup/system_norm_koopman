@@ -1,6 +1,10 @@
 doit
 hydra-core
 pykoop==1.0.4
-mosek
-git+https://github.com/scikit-optimize/scikit-optimize.git
+numpy
+scipy
 matplotlib
+pandas
+scikit-learn
+git+https://github.com/scikit-optimize/scikit-optimize.git
+mosek
