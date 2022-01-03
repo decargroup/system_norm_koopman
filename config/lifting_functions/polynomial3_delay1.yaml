@@ -1,0 +1,20 @@
+lifting_functions:
+  -
+    - ma
+    - _target_: pykoop.SkLearnLiftingFn
+      transformer:
+        _target_: sklearn.preprocessing.MaxAbsScaler
+  -
+    - dl
+    - _target_: pykoop.DelayLiftingFn
+      n_delays_state: 1
+      n_delays_input: 1
+  -
+    - pl
+    - _target_: pykoop.PolynomialLiftingFn
+      order: 3
+  -
+    - ss
+    - _target_: pykoop.SkLearnLiftingFn
+      transformer:
+        _target_: sklearn.preprocessing.StandardScaler

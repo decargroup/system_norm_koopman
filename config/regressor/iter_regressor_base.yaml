@@ -1,0 +1,11 @@
+max_iter: 100
+picos_eps: 1e-5
+iter_atol: 1e-6
+solver_params:
+  solver: 'mosek'
+  dualize: True
+  verbosity: 0
+  mosek_params:
+    MSK_IPAR_NUM_THREADS: 16
+  '*_fsb_tol': 1e-6
+  '*_opt_tol': 1e-6

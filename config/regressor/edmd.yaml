@@ -1,0 +1,3 @@
+regressor:
+  _target_: pykoop.Edmd
+  alpha: 0

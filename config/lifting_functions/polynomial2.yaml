@@ -1,0 +1,15 @@
+lifting_functions:
+  -
+    - ma
+    - _target_: pykoop.SkLearnLiftingFn
+      transformer:
+        _target_: sklearn.preprocessing.MaxAbsScaler
+  -
+    - pl
+    - _target_: pykoop.PolynomialLiftingFn
+      order: 2
+  -
+    - ss
+    - _target_: pykoop.SkLearnLiftingFn
+      transformer:
+        _target_: sklearn.preprocessing.StandardScaler

@@ -1,0 +1,6 @@
+defaults:
+  - srconst_base
+
+regressor:
+  spectral_radius: 1
+  iter_atol: 1e-6

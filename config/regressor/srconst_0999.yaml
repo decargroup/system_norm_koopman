@@ -1,0 +1,5 @@
+defaults:
+  - srconst_base
+
+regressor:
+  spectral_radius: 0.999

@@ -1,0 +1,13 @@
+defaults:
+  - /regressor: iter_regressor_base
+
+regressor:
+  _target_: pykoop.lmi_regressors.LmiDmdcSpectralRadiusConstr
+  spectral_radius: 0.999
+  alpha: 0
+  tsvd_unshifted:
+    _target_: pykoop.Tsvd
+    truncation: 'economy'
+  tsvd_shifted:
+    _target_: pykoop.Tsvd
+    truncation: 'unknown_noise'

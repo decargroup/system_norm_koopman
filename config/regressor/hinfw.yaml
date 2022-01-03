@@ -1,0 +1,17 @@
+defaults:
+  - /regressor@regressor.hinf_regressor: iter_regressor_base
+
+regressor:
+  _target_: pykoop.lmi_regressors.LmiHinfZpkMeta
+  hinf_regressor:
+    _target_: pykoop.lmi_regressors.LmiEdmdHinfReg
+    alpha: 1
+    ratio: 1
+    inv_method: 'svd'
+  type: post
+  zeros: -0.666667
+  poles: -0.999998
+  gain: 1.0
+  discretization: bilinear
+  t_step: -1
+  units: normalized
