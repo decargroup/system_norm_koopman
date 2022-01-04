@@ -1,6 +1,6 @@
 import pathlib
 import pickle
-from typing import Any, Dict
+from typing import Any, Dict, List
 
 import numpy as np
 from scipy import io
@@ -22,7 +22,7 @@ BUILD_DIRS = {
         'cvd_figures',
     ]
 }
-# Path ro ``datasets`` folder
+# Path to ``datasets`` folder
 DATASETS_DIR = WORKING_DIR.joinpath('datasets')
 
 
@@ -41,110 +41,113 @@ def task_build_dir() -> Dict[str, Any]:
 
 def task_pickle_faster_dataset() -> Dict[str, Any]:
     """Create pickle of FASTER dataset."""
-    def create_pickle(in_path: pathlib.Path, out_path: pathlib.Path) -> None:
-        array = np.loadtxt(in_path, delimiter=',', skiprows=1).T
-        t = array[0, :]
-        r = array[1, :]
-        u = array[2, :]
-        y = array[3, :]
-        d = array[4, :]
-        # Get number of inputs
-        n_u = 1
-        # Get timestep
-        t_step = np.mean(np.diff(t))
-        # Compute episode feature
-        val_set_len = t.size // 2
-        train_set_len = t.size - val_set_len
-        ep = np.concatenate((
-            np.zeros((train_set_len, )),
-            np.ones((val_set_len, )),
-        ))
-        # Form X
-        X = np.vstack((
-            ep,
-            y / np.max(np.abs(y)),
-            d / np.max(np.abs(d)),
-            u / np.max(np.abs(u)),
-        )).T
-        # Create output dict
-        output_dict = {
-            'n_inputs': n_u,
-            'episode_feature': True,
-            't_step': t_step,
-            'X': X,
-            'training_episodes': [0],
-            'validation_episodes': [1],
-        }
-        # Save pickle
-        with open(out_path, 'wb') as f:
-            pickle.dump(output_dict, f)
-
-    in_path = DATASETS_DIR.joinpath('faster/faster.csv')
-    out_path = BUILD_DIRS['datasets'].joinpath('faster.pickle')
-
     return {
-        'actions': [(create_pickle, [in_path, out_path])],
-        'file_dep': [in_path],
-        'targets': [out_path],
+        'actions': [create_faster_pickle],
+        'file_dep': [DATASETS_DIR.joinpath('faster/faster.csv')],
+        'targets': [BUILD_DIRS['datasets'].joinpath('faster.pickle')],
     }
 
 
 def task_pickle_soft_robot_dataset() -> Dict[str, Any]:
     """Create pickle of soft robot dataset."""
-    def create_pickle(in_path: pathlib.Path, out_path: pathlib.Path) -> None:
-        # Load mat file
-        mat = io.loadmat(in_path, simplify_cells=True)
-        # Get number of inputs
-        n_u = mat['train'][0]['u'].shape[1]
-        # Get number of training and validation episodes
-        n_train = len(mat['train'])
-        n_val = len(mat['val'])
-        # Get timestep
-        t_step = np.mean(np.diff(mat['train'][0]['t']))
-        # Form data matrix
-        X_lst = []
-        train_ep = []
-        ep_idx = 0
-        for i in range(n_train):
-            y = mat['train'][i]['y'] * 2.54  # ``in`` to ``cm``
-            u = mat['train'][i]['u']
-            e = ep_idx * np.ones((y.shape[0], 1))
-            x = np.hstack((e, y, u))
-            X_lst.append(x)
-            train_ep.append(ep_idx)
-            ep_idx += 1
-        val_ep = []
-        for i in range(n_val):
-            y = mat['val'][i]['y'] * 2.54  # ``in`` to ``cm``
-            u = mat['val'][i]['u']
-            e = ep_idx * np.ones((y.shape[0], 1))
-            x = np.hstack((e, y, u))
-            if i == 2:
-                X_lst.append(x[100:, :])
-            else:
-                X_lst.append(x)
-            val_ep.append(ep_idx)
-            ep_idx += 1
-        X = np.vstack(X_lst)
-        # Create output dict
-        output_dict = {
-            'n_inputs': n_u,
-            'episode_feature': True,
-            't_step': t_step,
-            'X': X,
-            'training_episodes': train_ep,
-            'validation_episodes': val_ep,
-        }
-        # Save pickle
-        with open(out_path, 'wb') as f:
-            pickle.dump(output_dict, f)
-
-    in_path = DATASETS_DIR.joinpath(
-        'soft_robot/soft-robot-koopman/datafiles/softrobot_train-13_val-4.mat')
-    out_path = BUILD_DIRS['datasets'].joinpath('soft_robot.pickle')
-
     return {
-        'actions': [(create_pickle, [in_path, out_path])],
-        'file_dep': [in_path],
-        'targets': [out_path],
+        'actions': [create_soft_robot_pickle],
+        'file_dep': [
+            DATASETS_DIR.joinpath(
+                'soft_robot/soft-robot-koopman/datafiles/softrobot_train-13_val-4.mat'
+            )
+        ],
+        'targets': [BUILD_DIRS['datasets'].joinpath('soft_robot.pickle')],
     }
+
+
+def create_faster_pickle(dependencies: List[pathlib.Path],
+                         targets: List[pathlib.Path]) -> None:
+    """Create pickle of FASTER dataset."""
+    array = np.loadtxt(dependencies[0], delimiter=',', skiprows=1).T
+    t = array[0, :]
+    r = array[1, :]
+    u = array[2, :]
+    y = array[3, :]
+    d = array[4, :]
+    # Get number of inputs
+    n_u = 1
+    # Get timestep
+    t_step = np.mean(np.diff(t))
+    # Compute episode feature
+    val_set_len = t.size // 2
+    train_set_len = t.size - val_set_len
+    ep = np.concatenate((
+        np.zeros((train_set_len, )),
+        np.ones((val_set_len, )),
+    ))
+    # Form X
+    X = np.vstack((
+        ep,
+        y / np.max(np.abs(y)),
+        d / np.max(np.abs(d)),
+        u / np.max(np.abs(u)),
+    )).T
+    # Create output dict
+    output_dict = {
+        'n_inputs': n_u,
+        'episode_feature': True,
+        't_step': t_step,
+        'X': X,
+        'training_episodes': [0],
+        'validation_episodes': [1],
+    }
+    # Save pickle
+    with open(targets[0], 'wb') as f:
+        pickle.dump(output_dict, f)
+
+
+def create_soft_robot_pickle(dependencies: List[pathlib.Path],
+                             targets: List[pathlib.Path]) -> None:
+    """Create pickle of soft robot dataset."""
+    # Load mat file
+    mat = io.loadmat(dependencies[0], simplify_cells=True)
+    # Get number of inputs
+    n_u = mat['train'][0]['u'].shape[1]
+    # Get number of training and validation episodes
+    n_train = len(mat['train'])
+    n_val = len(mat['val'])
+    # Get timestep
+    t_step = np.mean(np.diff(mat['train'][0]['t']))
+    # Form data matrix
+    X_lst = []
+    train_ep = []
+    ep_idx = 0
+    for i in range(n_train):
+        y = mat['train'][i]['y'] * 2.54  # ``in`` to ``cm``
+        u = mat['train'][i]['u']
+        e = ep_idx * np.ones((y.shape[0], 1))
+        x = np.hstack((e, y, u))
+        X_lst.append(x)
+        train_ep.append(ep_idx)
+        ep_idx += 1
+    val_ep = []
+    for i in range(n_val):
+        y = mat['val'][i]['y'] * 2.54  # ``in`` to ``cm``
+        u = mat['val'][i]['u']
+        e = ep_idx * np.ones((y.shape[0], 1))
+        x = np.hstack((e, y, u))
+        if i == 2:
+            X_lst.append(x[100:, :])
+        else:
+            X_lst.append(x)
+        val_ep.append(ep_idx)
+        ep_idx += 1
+    X = np.vstack(X_lst)
+    # Create output dict
+    output_dict = {
+        'n_inputs': n_u,
+        'episode_feature': True,
+        't_step': t_step,
+        'X': X,
+        'training_episodes': train_ep,
+        'validation_episodes': val_ep,
+    }
+    # Save pickle
+    with open(targets[0], 'wb') as f:
+        pickle.dump(output_dict, f)

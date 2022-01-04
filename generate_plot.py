@@ -80,12 +80,6 @@ def main():
     plt.rc('lines', linewidth=2)
     plt.rc('axes', grid=True)
     plt.rc('grid', linestyle='--')
-    # bat = cmcrameri.cm.tokyoS(np.arange(0, 1, 1e-2))
-    # bat = cmcrameri.cm.batlowS(np.arange(0, 1, 1e-2))
-    # bat = colorcet.cm.glasbey_bw(np.arange(0, 1, 1e-2))
-    # plt.style.use('tableau-colorblind10')
-    # plt.style.use('seaborn-colorblind')
-    # plt.style.use('seaborn-deep')
     # Call figure-generating function with input and output files
     fig = figure(in_paths)
     # Save figures if plot is specified
