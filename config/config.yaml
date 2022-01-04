@@ -1,7 +1,7 @@
 defaults:
-  - dataset: ???
   - lifting_functions: linear
   - regressor: edmd
   - _self_
 
+dataset: ???
 profile: False

@@ -49,7 +49,7 @@ def main(config: omegaconf.DictConfig) -> None:
 
     # Load data
     original_wd = pathlib.Path(hydra.utils.get_original_cwd())
-    dataset_path = original_wd.joinpath(config.dataset.path)
+    dataset_path = original_wd.joinpath(config.dataset)
     with open(dataset_path, 'rb') as f:
         dataset = pickle.load(f)
 
