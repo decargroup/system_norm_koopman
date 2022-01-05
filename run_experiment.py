@@ -47,6 +47,9 @@ def main(config: omegaconf.DictConfig) -> None:
     # Get working directory
     wd = pathlib.Path(os.getcwd())
 
+    # Dict where all relevant results will be saved:
+    res: Dict[str, Dict[str, Any]] = {}
+
     # Load data
     original_wd = pathlib.Path(hydra.utils.get_original_cwd())
     dataset_path = original_wd.joinpath(config.dataset)
@@ -231,6 +234,7 @@ def main(config: omegaconf.DictConfig) -> None:
         plot_weights(
             'weights',
             wd,
+            res,
             estimator.regressor_.ss_ct_,
             estimator.regressor_.ss_dt_,
         )
@@ -243,12 +247,15 @@ def main(config: omegaconf.DictConfig) -> None:
             i * np.ones((X_i.shape[0], 1)),
             X_i,
         ))
-        plot_timeseries(f'timeseries_{i}', wd, X_i_with_ep, [estimator])
-        plot_error(f'error_{i}', wd, X_i_with_ep, [estimator])
-    plot_eigenvalues('eigenvalues', wd, [estimator])
-    plot_matshow('matshow', wd, estimator)
-    plot_mimo_bode('bode', wd, estimator, dataset['t_step'])
-    plot_convergence('convergence', wd, estimator)
+        plot_timeseries(f'timeseries_{i}', wd, res, X_i_with_ep, [estimator])
+        plot_error(f'error_{i}', wd, res, X_i_with_ep, [estimator])
+    plot_eigenvalues('eigenvalues', wd, res, [estimator])
+    plot_matshow('matshow', wd, res, estimator)
+    plot_mimo_bode('bode', wd, res, estimator, dataset['t_step'])
+    plot_convergence('convergence', wd, res, estimator)
+    # Save pickle of results
+    with open(wd.joinpath('run_experiment.pickle'), 'wb') as f:
+        pickle.dump(res, f)
     # End timer
     end_time = time.monotonic()
     execution_time = end_time - start_time
@@ -324,7 +331,7 @@ def log_execution_time_and_notify(execution_time: float, notify: bool) -> None:
                             'from: https://github.com/dschep/ntfy')
 
 
-def plot_timeseries(path, wd, X_validation, estimators, labels=None):
+def plot_timeseries(path, wd, res, X_validation, estimators, labels=None):
     """Plot timeseries of states."""
     # Create figure
     fig = plt.figure(constrained_layout=True)
@@ -356,10 +363,10 @@ def plot_timeseries(path, wd, X_validation, estimators, labels=None):
         except Exception as e:
             logging.warning(e)
             score = np.nan
-        save_dict(path, wd, {
+        res[path] = {
             'X_prediction': X_prediction,
             'X_validation': X_validation,
-        })
+        }
         X_prediction = X_prediction[:, 1:]
         X_validation = X_validation[:, 1:]
         for i in range(n_state + n_input):
@@ -374,7 +381,7 @@ def plot_timeseries(path, wd, X_validation, estimators, labels=None):
     fig.savefig(wd.joinpath(f'{path}.png'))
 
 
-def plot_error(path, wd, X_validation, estimators, labels=None):
+def plot_error(path, wd, res, X_validation, estimators, labels=None):
     """Plot timeseries of error."""
     # Create figure
     fig = plt.figure(constrained_layout=True)
@@ -413,7 +420,7 @@ def plot_error(path, wd, X_validation, estimators, labels=None):
     fig.savefig(wd.joinpath(f'{path}.png'))
 
 
-def plot_weights(path, wd, ss_ct, ss_dt):
+def plot_weights(path, wd, res, ss_ct, ss_dt):
     """Plot Hinf weights."""
     fig, ax = plt.subplots(1, 2, constrained_layout=True)
     # Continuous time
@@ -436,21 +443,20 @@ def plot_weights(path, wd, ss_ct, ss_dt):
     ax2.plot(w_dt, mag_dt_db, color='C1')
     ax2.set_ylabel('Magnitude [dB]', color='C1')
     ax2.tick_params(axis='y', labelcolor='C1')
-    save_dict(
-        path, wd, {
-            'w_ct': w_ct,
-            'H_ct': H_ct,
-            'mag_ct': mag_ct,
-            'w_dt': w_dt,
-            'H_dt': H_dt,
-            'mag_dt': mag_dt,
-            'mag_dt_db': mag_dt_db,
-        })
+    res[path] = {
+        'w_ct': w_ct,
+        'H_ct': H_ct,
+        'mag_ct': mag_ct,
+        'w_dt': w_dt,
+        'H_dt': H_dt,
+        'mag_dt': mag_dt,
+        'mag_dt_db': mag_dt_db,
+    }
     # Save figure
     fig.savefig(wd.joinpath(f'{path}.png'))
 
 
-def plot_eigenvalues(path, wd, estimators, labels=None):
+def plot_eigenvalues(path, wd, res, estimators, labels=None):
     """Plot eigendecomposition."""
     # Create figure
     fig = plt.figure(constrained_layout=True)
@@ -477,10 +483,10 @@ def plot_eigenvalues(path, wd, estimators, labels=None):
         eigv_mag = np.absolute(eigv)
         idx = eigv_mag.argsort()[::-1]
         ax.plot(eigv_mag[idx], marker=marker, label=label)
-        save_dict(path, wd, {
+        res[path] = {
             'eigv': eigv,
             'eigv_mat': eigv_mag[idx],
-        })
+        }
 
     # Fill in labels if missing
     if labels is None:
@@ -514,7 +520,7 @@ def plot_eigenvalues(path, wd, estimators, labels=None):
     fig.savefig(wd.joinpath(f'{path}.png'))
 
 
-def plot_matshow(path, wd, estimator, label=None):
+def plot_matshow(path, wd, res, estimator, label=None):
     """Plot matrix in an image."""
     # Fill in labels if missing
     if label is None:
@@ -530,13 +536,13 @@ def plot_matshow(path, wd, estimator, label=None):
     ax.set_title(label)
     fig.colorbar(im)
     # Save figure
-    save_dict(path, wd, {
+    res[path] = {
         'U': U,
-    })
+    }
     fig.savefig(wd.joinpath(f'{path}.png'))
 
 
-def plot_mimo_bode(path, wd, estimator, t_step, label=None):
+def plot_mimo_bode(path, wd, res, estimator, t_step, label=None):
     """Plot MIMO Bode plot."""
     # Fill in labels if missing
     if label is None:
@@ -575,16 +581,16 @@ def plot_mimo_bode(path, wd, estimator, t_step, label=None):
     ax2.set_ylabel('Maximum singular value of G[z] (dB)', color='C1')
     ax2.tick_params(axis='y', labelcolor='C1')
     # Save figure
-    save_dict(path, wd, {
+    res[path] = {
         'f_samp': f_samp,
         'f_plot': f_plot,
         'mag': mag,
         'mag_db': mag_db,
-    })
+    }
     fig.savefig(wd.joinpath(f'{path}.png'))
 
 
-def plot_convergence(path, wd, estimator, label=None):
+def plot_convergence(path, wd, res, estimator, label=None):
     """Plot convergence if applicable."""
     # Check for objective log
     obj_log = None
@@ -605,17 +611,10 @@ def plot_convergence(path, wd, estimator, label=None):
         ax.set_xlabel('Iteration')
         ax.set_ylabel('Objective function value')
         # Save figure
-        save_dict(path, wd, {
+        res[path] = {
             'obj': obj,
-        })
+        }
         fig.savefig(wd.joinpath(f'{path}.png'))
-
-
-def save_dict(name, wd, dict_):
-    """Save a dict."""
-    path = wd.joinpath(f'{name}.pickle')
-    with open(path, 'wb') as f:
-        pickle.dump(dict_, f)
 
 
 if __name__ == '__main__':

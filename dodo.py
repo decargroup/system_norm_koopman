@@ -31,7 +31,7 @@ LIFTING_FUNCTIONS_DIR = CONFIG_DIR.joinpath('lifting_functions')
 REGRESSOR_DIR = CONFIG_DIR.joinpath('regressor')
 EXPERIMENT = WORKING_DIR.joinpath('run_experiment.py')
 
-HYDRA_TARGET = '.hydra/hydra.yaml'
+HYDRA_PICKLE = 'run_experiment.pickle'
 
 # log = 'run_experiment.log'
 # PLOTS = [
@@ -196,11 +196,7 @@ def task_experiment() -> Dict[str, Any]:
                 lifting_function,
                 regressor,
             ],
-            # Even though a whole directory of data is generated,
-            # ``.hydra/hydra.yaml`` is treated as the target. This is a
-            # workaround for the fact that ``doit`` (probably rightfully) does
-            # not support directories as targets.
-            'targets': [exp_dir.joinpath(HYDRA_TARGET)],
+            'targets': [exp_dir.joinpath(HYDRA_PICKLE)],
         }
 
 
@@ -212,9 +208,9 @@ def task_plot() -> Dict[str, Any]:
             action.__name__,
             'actions': [action],
             'file_dep': [
-                BUILD_DIRS['hydra_outputs'].joinpath('faster__polynomial2__edmd').joinpath(HYDRA_TARGET),
-                BUILD_DIRS['hydra_outputs'].joinpath('faster__polynomial2__srconst_099').joinpath(HYDRA_TARGET),
-                BUILD_DIRS['hydra_outputs'].joinpath('faster__polynomial2__srconst_1').joinpath(HYDRA_TARGET),
+                BUILD_DIRS['hydra_outputs'].joinpath('faster__polynomial2__edmd').joinpath(HYDRA_PICKLE),
+                BUILD_DIRS['hydra_outputs'].joinpath('faster__polynomial2__srconst_099').joinpath(HYDRA_PICKLE),
+                BUILD_DIRS['hydra_outputs'].joinpath('faster__polynomial2__srconst_1').joinpath(HYDRA_PICKLE),
             ],
             'targets': [
                 BUILD_DIRS['figures'].joinpath(f'{action.__name__}.pdf'),
@@ -318,9 +314,9 @@ def pickle_soft_robot_dataset(dependencies: List[pathlib.Path],
 def faster_error(dependencies: List[pathlib.Path],
                  targets: List[pathlib.Path]) -> None:
     """Save faster timeseries plot."""
-    unconst = _open_hydra_pickles(dependencies[0])
-    const1 = _open_hydra_pickles(dependencies[1])
-    const099 = _open_hydra_pickles(dependencies[2])
+    unconst = _open_hydra_pickle(dependencies[0])
+    const1 = _open_hydra_pickle(dependencies[1])
+    const099 = _open_hydra_pickle(dependencies[2])
 
     t_step = 1 / unconst['bode']['f_samp']
     n_t = int(10 / t_step)
@@ -393,13 +389,8 @@ def faster_error(dependencies: List[pathlib.Path],
         fig.savefig(target, bbox_inches='tight', pad_inches=0.1)
 
 
-def _open_hydra_pickles(path: str) -> Dict[str, Any]:
+def _open_hydra_pickle(path: str) -> Dict[str, Any]:
     """Open pickles in directory of Hydra log and return dict of data."""
-    hydra_path = pathlib.Path(path).parent.parent
-    pickles = list(hydra_path.glob('*.pickle'))
-    keys = [p.stem for p in pickles]
-    opened_pickles = {}
-    for k, p in zip(keys, pickles):
-        with open(p, 'rb') as f:
-            opened_pickles[k] = pickle.load(f)
-    return opened_pickles
+    with open(path, 'rb') as f:
+        opened_pickle = pickle.load(f)
+    return opened_pickle
