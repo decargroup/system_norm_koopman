@@ -124,13 +124,17 @@ plt.rc('axes', grid=True)
 plt.rc('grid', linestyle='--')
 
 
-# TODO add dependencies correctly?
-# TODO Add clean for build too?
-def task_build_dir() -> Dict[str, Any]:
+def task_directory() -> Dict[str, Any]:
     """Create ``build`` directory and subdirectories."""
-    for (subdir_name, subdir) in BUILD_DIRS.items():
+    yield {
+        'name': BUILD_DIR.stem,
+        'actions': [(doit.tools.create_folder, [BUILD_DIR])],
+        'targets': [BUILD_DIR],
+        'clean': [(shutil.rmtree, [BUILD_DIR, True])]
+    }
+    for subdir in BUILD_DIRS.values():
         yield {
-            'name': subdir_name,
+            'name': BUILD_DIR.stem + '/' + subdir.stem,
             'actions': [(doit.tools.create_folder, [subdir])],
             'targets': [subdir],
             'clean': [(shutil.rmtree, [subdir, True])]
