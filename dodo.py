@@ -3,6 +3,7 @@ import pathlib
 import pickle
 from typing import Any, Dict, List
 
+import doit
 import numpy as np
 from matplotlib import pyplot as plt
 from scipy import io
@@ -125,13 +126,10 @@ plt.rc('grid', linestyle='--')
 # TODO Is this ever called properly??
 def task_build_dir() -> Dict[str, Any]:
     """Create ``build`` directory and subdirectories."""
-    def make_subdir(subdir: pathlib.Path) -> None:
-        subdir.mkdir(parents=True, exist_ok=True)
-
     for (subdir_name, subdir) in BUILD_DIRS.items():
         yield {
             'name': subdir_name,
-            'actions': [(make_subdir, [subdir])],
+            'actions': [(doit.tools.create_folder, [subdir])],
             'targets': [subdir],
         }
 
@@ -208,9 +206,12 @@ def task_plot() -> Dict[str, Any]:
             action.__name__,
             'actions': [action],
             'file_dep': [
-                BUILD_DIRS['hydra_outputs'].joinpath('faster__polynomial2__edmd').joinpath(HYDRA_PICKLE),
-                BUILD_DIRS['hydra_outputs'].joinpath('faster__polynomial2__srconst_099').joinpath(HYDRA_PICKLE),
-                BUILD_DIRS['hydra_outputs'].joinpath('faster__polynomial2__srconst_1').joinpath(HYDRA_PICKLE),
+                BUILD_DIRS['hydra_outputs'].joinpath(
+                    'faster__polynomial2__edmd').joinpath(HYDRA_PICKLE),
+                BUILD_DIRS['hydra_outputs'].joinpath(
+                    'faster__polynomial2__srconst_099').joinpath(HYDRA_PICKLE),
+                BUILD_DIRS['hydra_outputs'].joinpath(
+                    'faster__polynomial2__srconst_1').joinpath(HYDRA_PICKLE),
             ],
             'targets': [
                 BUILD_DIRS['figures'].joinpath(f'{action.__name__}.pdf'),
