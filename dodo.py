@@ -2,6 +2,7 @@ import itertools
 import pathlib
 import pickle
 from typing import Any, Dict, List
+import shutil
 
 import doit
 import numpy as np
@@ -123,7 +124,8 @@ plt.rc('axes', grid=True)
 plt.rc('grid', linestyle='--')
 
 
-# TODO Is this ever called properly??
+# TODO add dependencies correctly?
+# TODO Add clean for build too?
 def task_build_dir() -> Dict[str, Any]:
     """Create ``build`` directory and subdirectories."""
     for (subdir_name, subdir) in BUILD_DIRS.items():
@@ -131,6 +133,7 @@ def task_build_dir() -> Dict[str, Any]:
             'name': subdir_name,
             'actions': [(doit.tools.create_folder, [subdir])],
             'targets': [subdir],
+            'clean': [(shutil.rmtree, [subdir, True])]
         }
 
 
