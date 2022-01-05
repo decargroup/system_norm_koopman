@@ -168,7 +168,8 @@ def main(config: omegaconf.DictConfig) -> None:
                 verbose=4,
             )
             # Run cross-validation
-            gs.fit(X_training,
+            gs.fit(
+                X_training,
                 n_inputs=dataset['n_inputs'],
                 episode_feature=dataset['episode_feature'],
                 groups=groups,
@@ -197,7 +198,8 @@ def main(config: omegaconf.DictConfig) -> None:
                 },
             )
             # Run cross-validation
-            gs.fit(X_training,
+            gs.fit(
+                X_training,
                 n_inputs=dataset['n_inputs'],
                 episode_feature=dataset['episode_feature'],
                 groups=groups,
@@ -250,7 +252,7 @@ def main(config: omegaconf.DictConfig) -> None:
     # End timer
     end_time = time.monotonic()
     execution_time = end_time - start_time
-    log_execution_time_and_notify(execution_time)
+    log_execution_time_and_notify(execution_time, config.notify)
 
 
 def on_step_callback(res):
@@ -306,7 +308,7 @@ def get_gridsearchcv_params(
     return params
 
 
-def log_execution_time_and_notify(execution_time: float) -> None:
+def log_execution_time_and_notify(execution_time: float, notify: bool) -> None:
     """Log execution time and notify."""
     formatted_execution_time = datetime.timedelta(seconds=execution_time)
     logging.info(f'Execution time: {formatted_execution_time}')
@@ -314,11 +316,12 @@ def log_execution_time_and_notify(execution_time: float) -> None:
     # Push notification if ``ntfy`` is installed and configured.
     cfg = hydra.core.hydra_config.HydraConfig.get().job.override_dirname
     status = f'Config: {cfg}\nExecution time: {formatted_execution_time}'
-    try:
-        subprocess.call(('ntfy', '--title', 'CV complete', 'send', status))
-    except Exception:
-        logging.warning('To enable push notifications, install `ntfy` from: '
-                        'https://github.com/dschep/ntfy')
+    if notify:
+        try:
+            subprocess.call(('ntfy', '--title', 'CV complete', 'send', status))
+        except Exception:
+            logging.warning('To enable push notifications, install `ntfy` '
+                            'from: https://github.com/dschep/ntfy')
 
 
 def plot_timeseries(path, wd, X_validation, estimators, labels=None):
