@@ -1,8 +1,8 @@
 import itertools
 import pathlib
 import pickle
-from typing import Any, Dict, List
 import shutil
+from typing import Any, Dict, List
 
 import doit
 import numpy as np
@@ -136,30 +136,35 @@ def task_directory() -> Dict[str, Any]:
         yield {
             'name': BUILD_DIR.stem + '/' + subdir.stem,
             'actions': [(doit.tools.create_folder, [subdir])],
+            'task_dep': [f'directory:{BUILD_DIR.stem}'],
             'targets': [subdir],
             'clean': [(shutil.rmtree, [subdir, True])]
         }
 
 
-def task_pickle_faster_dataset() -> Dict[str, Any]:
-    """Pickle FASTER dataset."""
-    return {
+def task_pickle() -> Dict[str, Any]:
+    """Pickle a dataset."""
+    yield {
+        'name': 'faster',
         'actions': [pickle_faster_dataset],
         'file_dep': [DATASETS_DIR.joinpath('faster/faster.csv')],
+        'task_dep': ['directory:build/datasets'],
         'targets': [BUILD_DIRS['datasets'].joinpath('faster.pickle')],
+        'clean': True,
     }
-
-
-def task_pickle_soft_robot_dataset() -> Dict[str, Any]:
-    """Pickle soft robot dataset."""
-    return {
+    yield {
+        'name':
+        'soft_robot',
         'actions': [pickle_soft_robot_dataset],
         'file_dep': [
             DATASETS_DIR.joinpath(
                 'soft_robot/soft-robot-koopman/datafiles/softrobot_train-13_val-4.mat'
             )
         ],
+        'task_dep': ['directory:build/datasets'],
         'targets': [BUILD_DIRS['datasets'].joinpath('soft_robot.pickle')],
+        'clean':
+        True,
     }
 
 
@@ -201,7 +206,9 @@ def task_experiment() -> Dict[str, Any]:
                 lifting_function,
                 regressor,
             ],
+            'task_dep': ['directory:build/hydra_outputs'],
             'targets': [exp_dir.joinpath(HYDRA_PICKLE)],
+            'clean': [(shutil.rmtree, [exp_dir, True])]
         }
 
 
@@ -220,10 +227,15 @@ def task_plot() -> Dict[str, Any]:
                 BUILD_DIRS['hydra_outputs'].joinpath(
                     'faster__polynomial2__srconst_1').joinpath(HYDRA_PICKLE),
             ],
+            'task_dep': [
+                'directory:build/figures',
+                'directory:build/cvd_figures',
+            ],
             'targets': [
                 BUILD_DIRS['figures'].joinpath(f'{action.__name__}.pdf'),
                 BUILD_DIRS['cvd_figures'].joinpath(f'{action.__name__}.png'),
             ],
+            'clean': True,
         }
 
 
