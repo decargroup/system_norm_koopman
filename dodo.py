@@ -2,12 +2,14 @@ import itertools
 import pathlib
 import pickle
 import shutil
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Tuple
 
 import doit
+import matplotlib
 import numpy as np
+import pandas
 from matplotlib import pyplot as plt
-from scipy import io
+from scipy import io, linalg
 
 # DOIT_CONFIG = {'default_tasks': []}
 
@@ -35,42 +37,6 @@ EXPERIMENT = WORKING_DIR.joinpath('run_experiment.py')
 
 HYDRA_PICKLE = 'run_experiment.pickle'
 
-# log = 'run_experiment.log'
-# PLOTS = [
-#     # FASTER plots
-#     ([
-#         faster_eig,
-#         faster_error,
-#     ], [
-#         f'faster__polynomial2__edmd/{log}',
-#         f'faster__polynomial2__srconst_1/{log}',
-#         f'faster__polynomial2__srconst_099/{log}',
-#     ]),
-#     # Soft robot EDMD plots
-#     ([
-#         soft_robot_error,
-#         soft_robot_eig,
-#         soft_robot_svd,
-#         soft_robot_bode,
-#         soft_robot_scatter_by_method,
-#         soft_robot_weights,
-#     ], [
-#         f'soft_robot__polynomial3_delay1__edmd/{log}',
-#         f'soft_robot__polynomial3_delay1__srconst_0999/{log}',
-#         f'soft_robot__polynomial3_delay1__hinf/{log}',
-#         f'soft_robot__polynomial3_delay1__hinfw/{log}',
-#     ]),
-#     # Soft robot DMDc plots
-#     ([
-#         soft_robot_dmdc_svd,
-#         soft_robot_dmdc_bode,
-#         soft_robot_scatter_dmdc,
-#     ], [
-#         f'soft_robot__polynomial3_delay1__srconst_0999/{log}',
-#         f'soft_robot__polynomial3_delay1__srconst_0999_dmdc/{log}',
-#         f'soft_robot__polynomial3_delay1__hinf/{log}',
-#         f'soft_robot__polynomial3_delay1__hinf_dmdc/{log}',
-#     ]),
 #     # Soft robot performance plots
 #     ([
 #         soft_robot_exec,
@@ -83,6 +49,10 @@ HYDRA_PICKLE = 'run_experiment.pickle'
 #     ]),
 # ]
 
+# SVD cutoff
+TOL = 1e-12
+# H-infinity LaTeX
+HINF = r'$\mathcal{H}_\infty$'
 # Okabe-Ito colorscheme
 OKABE_ITO = {
     'black': (0.00, 0.00, 0.00),
@@ -130,7 +100,8 @@ def task_directory() -> Dict[str, Any]:
         'name': BUILD_DIR.stem,
         'actions': [(doit.tools.create_folder, [BUILD_DIR])],
         'targets': [BUILD_DIR],
-        'clean': [(shutil.rmtree, [BUILD_DIR, True])]
+        'clean': [(shutil.rmtree, [BUILD_DIR, True])],
+        'uptodate': [True],
     }
     for subdir in BUILD_DIRS.values():
         yield {
@@ -138,7 +109,8 @@ def task_directory() -> Dict[str, Any]:
             'actions': [(doit.tools.create_folder, [subdir])],
             'task_dep': [f'directory:{BUILD_DIR.stem}'],
             'targets': [subdir],
-            'clean': [(shutil.rmtree, [subdir, True])]
+            'clean': [(shutil.rmtree, [subdir, True])],
+            'uptodate': [True],
         }
 
 
@@ -208,13 +180,13 @@ def task_experiment() -> Dict[str, Any]:
             ],
             'task_dep': ['directory:build/hydra_outputs'],
             'targets': [exp_dir.joinpath(HYDRA_PICKLE)],
-            'clean': [(shutil.rmtree, [exp_dir, True])]
+            'clean': [(shutil.rmtree, [exp_dir, True])],
         }
 
 
 def task_plot() -> Dict[str, Any]:
     """Plot a figure."""
-    for action in [faster_error]:
+    for action in [faster_eig, faster_error]:
         yield {
             'name':
             action.__name__,
@@ -223,9 +195,9 @@ def task_plot() -> Dict[str, Any]:
                 BUILD_DIRS['hydra_outputs'].joinpath(
                     'faster__polynomial2__edmd').joinpath(HYDRA_PICKLE),
                 BUILD_DIRS['hydra_outputs'].joinpath(
-                    'faster__polynomial2__srconst_099').joinpath(HYDRA_PICKLE),
-                BUILD_DIRS['hydra_outputs'].joinpath(
                     'faster__polynomial2__srconst_1').joinpath(HYDRA_PICKLE),
+                BUILD_DIRS['hydra_outputs'].joinpath(
+                    'faster__polynomial2__srconst_099').joinpath(HYDRA_PICKLE),
             ],
             'task_dep': [
                 'directory:build/figures',
@@ -235,7 +207,79 @@ def task_plot() -> Dict[str, Any]:
                 BUILD_DIRS['figures'].joinpath(f'{action.__name__}.pdf'),
                 BUILD_DIRS['cvd_figures'].joinpath(f'{action.__name__}.png'),
             ],
-            'clean': True,
+            'clean':
+            True,
+        }
+    for action in [
+            soft_robot_error,
+            soft_robot_eig,
+            soft_robot_bode,
+            soft_robot_svd,
+            soft_robot_weights,
+            soft_robot_scatter_by_method,
+    ]:
+        yield {
+            'name':
+            action.__name__,
+            'actions': [action],
+            'file_dep': [
+                BUILD_DIRS['hydra_outputs'].joinpath(
+                    'soft_robot__polynomial3_delay1__edmd').joinpath(
+                        HYDRA_PICKLE),
+                BUILD_DIRS['hydra_outputs'].joinpath(
+                    'soft_robot__polynomial3_delay1__srconst_0999').joinpath(
+                        HYDRA_PICKLE),
+                BUILD_DIRS['hydra_outputs'].joinpath(
+                    'soft_robot__polynomial3_delay1__hinf').joinpath(
+                        HYDRA_PICKLE),
+                BUILD_DIRS['hydra_outputs'].joinpath(
+                    'soft_robot__polynomial3_delay1__hinfw').joinpath(
+                        HYDRA_PICKLE),
+            ],
+            'task_dep': [
+                'directory:build/figures',
+                'directory:build/cvd_figures',
+            ],
+            'targets': [
+                BUILD_DIRS['figures'].joinpath(f'{action.__name__}.pdf'),
+                BUILD_DIRS['cvd_figures'].joinpath(f'{action.__name__}.png'),
+            ],
+            'clean':
+            True,
+        }
+    for action in [
+            soft_robot_dmdc_svd,
+            soft_robot_dmdc_bode,
+            soft_robot_scatter_dmdc,
+    ]:
+        yield {
+            'name':
+            action.__name__,
+            'actions': [action],
+            'file_dep': [
+                BUILD_DIRS['hydra_outputs'].joinpath(
+                    'soft_robot__polynomial3_delay1__srconst_0999').joinpath(
+                        HYDRA_PICKLE),
+                BUILD_DIRS['hydra_outputs'].joinpath(
+                    'soft_robot__polynomial3_delay1__srconst_0999_dmdc').
+                joinpath(HYDRA_PICKLE),
+                BUILD_DIRS['hydra_outputs'].joinpath(
+                    'soft_robot__polynomial3_delay1__hinf').joinpath(
+                        HYDRA_PICKLE),
+                BUILD_DIRS['hydra_outputs'].joinpath(
+                    'soft_robot__polynomial3_delay1__hinf_dmdc').joinpath(
+                        HYDRA_PICKLE),
+            ],
+            'task_dep': [
+                'directory:build/figures',
+                'directory:build/cvd_figures',
+            ],
+            'targets': [
+                BUILD_DIRS['figures'].joinpath(f'{action.__name__}.pdf'),
+                BUILD_DIRS['cvd_figures'].joinpath(f'{action.__name__}.png'),
+            ],
+            'clean':
+            True,
         }
 
 
@@ -334,9 +378,10 @@ def pickle_soft_robot_dataset(dependencies: List[pathlib.Path],
 def faster_error(dependencies: List[pathlib.Path],
                  targets: List[pathlib.Path]) -> None:
     """Save faster timeseries plot."""
-    unconst = _open_hydra_pickle(dependencies[0])
-    const1 = _open_hydra_pickle(dependencies[1])
-    const099 = _open_hydra_pickle(dependencies[2])
+    deps = _open_hydra_pickles(dependencies)
+    unconst = deps['faster__polynomial2__edmd']
+    const1 = deps['faster__polynomial2__srconst_1']
+    const099 = deps['faster__polynomial2__srconst_099']
 
     t_step = 1 / unconst['bode']['f_samp']
     n_t = int(10 / t_step)
@@ -409,8 +454,899 @@ def faster_error(dependencies: List[pathlib.Path],
         fig.savefig(target, bbox_inches='tight', pad_inches=0.1)
 
 
-def _open_hydra_pickle(path: str) -> Dict[str, Any]:
+def faster_eig(dependencies: List[pathlib.Path],
+               targets: List[pathlib.Path]) -> None:
+    """Save FASTER eigenvalue plot."""
+    deps = _open_hydra_pickles(dependencies)
+    unconst = deps['faster__polynomial2__edmd']
+    const1 = deps['faster__polynomial2__srconst_1']
+    const099 = deps['faster__polynomial2__srconst_099']
+
+    fig = plt.figure(constrained_layout=True)
+    ax = fig.add_subplot(projection='polar')
+
+    scatter_style = {
+        's': 50 * 1.5,
+        'edgecolors': 'w',
+        'linewidth': 0.25 * 1.5,
+    }
+
+    th = np.linspace(0, 2 * np.pi)
+    ax.plot(
+        th,
+        np.ones(th.shape),
+        '--',
+        color=C['1.00'],
+        linewidth=1.5,
+    )
+    ax.plot(
+        th,
+        0.99 * np.ones(th.shape),
+        '--',
+        color=C['0.99'],
+        linewidth=1.5,
+    )
+
+    ax.scatter(
+        np.angle(const1['eigenvalues']['eigv']),
+        np.absolute(const1['eigenvalues']['eigv']),
+        color=C['1.00'],
+        marker='o',
+        label=r'A.S. constr., $\bar{\rho} = 1.00$',
+        **scatter_style,
+    )
+    ax.scatter(
+        np.angle(const099['eigenvalues']['eigv']),
+        np.absolute(const099['eigenvalues']['eigv']),
+        color=C['0.99'],
+        marker='s',
+        label=r'A.S. constr., $\bar{\rho} = 0.99$',
+        **scatter_style,
+    )
+
+    ax.text(0, 1.125, r'$\angle \lambda_i$')
+    ax.text(-np.pi / 8 - np.pi / 16, 0.5, r'$|\lambda_i|$')
+    ax.set_axisbelow(True)
+
+    ax.legend(loc='lower left', ncol=1)
+
+    ax.set_xticks([d * np.pi / 180 for d in [-20, -10, 0, 10, 20]])
+    ax.set_thetalim(-np.pi / 8, np.pi / 8)
+
+    for target in targets:
+        fig.savefig(target, bbox_inches='tight', pad_inches=0.1)
+
+
+def soft_robot_error(dependencies: List[pathlib.Path],
+                     targets: List[pathlib.Path]) -> None:
+    """Save soft robot timeseries plot."""
+    deps = _open_hydra_pickles(dependencies)
+    edmd = deps['soft_robot__polynomial3_delay1__edmd']
+    srconst = deps['soft_robot__polynomial3_delay1__srconst_0999']
+    hinf = deps['soft_robot__polynomial3_delay1__hinf']
+    hinfw = deps['soft_robot__polynomial3_delay1__hinfw']
+
+    series = 'timeseries_15.0'
+
+    t_step = 1 / edmd['bode']['f_samp']
+    n_t = edmd[series]['X_validation'].shape[0]
+    t = np.arange(n_t) * t_step
+
+    n_x = edmd[series]['X_prediction'].shape[1] - 1
+
+    fig, ax = plt.subplots(3, 1, constrained_layout=True, sharex=True)
+
+    for i in range(2):
+        ax[i].plot(
+            t,
+            (edmd[series]['X_validation'][:n_t, i + 1] -
+             edmd[series]['X_prediction'][:n_t, i + 1]),
+            label='Extended DMD',
+            color=C['edmd'],
+        )
+        ax[i].plot(
+            t,
+            (edmd[series]['X_validation'][:n_t, i + 1] -
+             srconst[series]['X_prediction'][:n_t, i + 1]),
+            label='A.S. constraint',
+            color=C['srconst'],
+        )
+        ax[i].plot(
+            t,
+            (edmd[series]['X_validation'][:n_t, i + 1] -
+             hinf[series]['X_prediction'][:n_t, i + 1]),
+            label=f'{HINF} regularizer',
+            color=C['hinf'],
+        )
+
+    ax[2].plot(
+        t,
+        edmd[series]['X_validation'][:n_t, 3],
+        '--',
+        color=C['u1'],
+        label=r'$u_1(t)$',
+    )
+    ax[2].plot(
+        t,
+        edmd[series]['X_validation'][:n_t, 4],
+        '--',
+        color=C['u2'],
+        label=r'$u_2(t)$',
+    )
+    ax[2].plot(
+        t,
+        edmd[series]['X_validation'][:n_t, 5],
+        '--',
+        color=C['u3'],
+        label=r'$u_3(t)$',
+    )
+
+    ax[-1].set_xlabel(r'$t$ (s)')
+
+    ax[0].set_ylabel(r'$\Delta x_1(t)$ (cm)')
+    ax[1].set_ylabel(r'$\Delta x_2(t)$ (cm)')
+    ax[2].set_ylabel(r'${\bf u}(t)$ (V)')
+
+    ax[0].set_ylim(-5, 5)
+    ax[1].set_ylim(-5, 5)
+    ax[2].set_ylim(-1, 9)
+
+    ax[0].set_yticks([-4, -2, 0, 2, 4])
+    ax[1].set_yticks([-4, -2, 0, 2, 4])
+    ax[2].set_yticks([0, 2, 4, 6, 8])
+
+    ax[2].legend(
+        [
+            ax[1].get_lines()[0],
+            ax[2].get_lines()[0],
+            ax[1].get_lines()[1],
+            ax[2].get_lines()[1],
+            ax[1].get_lines()[2],
+            ax[2].get_lines()[2],
+        ],
+        [
+            'Extended DMD',
+            r'$u_1(t)$',
+            'A.S. constraint',
+            r'$u_2(t)$',
+            f'{HINF} regularizer',
+            r'$u_3(t)$',
+        ],
+        loc='upper center',
+        ncol=3,
+        bbox_to_anchor=(0.5, -0.5),
+    )
+
+    fig.align_labels()
+
+    for target in targets:
+        fig.savefig(target, bbox_inches='tight', pad_inches=0.1)
+
+
+def soft_robot_eig(dependencies: List[pathlib.Path],
+                   targets: List[pathlib.Path]) -> None:
+    """Save soft robot eigenvalue plot."""
+    deps = _open_hydra_pickles(dependencies)
+    edmd = deps['soft_robot__polynomial3_delay1__edmd']
+    srconst = deps['soft_robot__polynomial3_delay1__srconst_0999']
+    hinf = deps['soft_robot__polynomial3_delay1__hinf']
+    hinfw = deps['soft_robot__polynomial3_delay1__hinfw']
+
+    fig = plt.figure(constrained_layout=True)
+    ax = fig.add_subplot(projection='polar')
+
+    th = np.linspace(0, 2 * np.pi)
+    ax.plot(
+        th,
+        np.ones(th.shape),
+        '--',
+        color='k',
+        linewidth=1.5,
+    )
+
+    scatter_style = {
+        's': 50,
+        'edgecolors': 'w',
+        'linewidth': 0.25,
+        'zorder': 2,
+    }
+
+    ax.scatter(
+        np.angle(edmd['eigenvalues']['eigv']),
+        np.absolute(edmd['eigenvalues']['eigv']),
+        color=C['edmd'],
+        marker='o',
+        label=r'Extended DMD',
+        **scatter_style,
+    )
+    ax.scatter(
+        np.angle(srconst['eigenvalues']['eigv']),
+        np.absolute(srconst['eigenvalues']['eigv']),
+        color=C['srconst'],
+        marker='s',
+        label=r'A.S. constraint',
+        **scatter_style,
+    )
+    ax.scatter(
+        np.angle(hinf['eigenvalues']['eigv']),
+        np.absolute(hinf['eigenvalues']['eigv']),
+        color=C['hinf'],
+        marker='D',
+        label=f'{HINF} regularizer',
+        **scatter_style,
+    )
+
+    axins = fig.add_axes(
+        [0.6, 0.05, 0.5, 0.5],
+        projection='polar',
+    )
+
+    axins.plot(
+        th,
+        np.ones(th.shape),
+        '--',
+        color='k',
+        linewidth=1.5,
+    )
+
+    rmax = 1.05
+    thmax = np.pi / 16
+
+    axins.set_rlim(0, rmax)
+    axins.set_thetalim(-thmax, thmax)
+
+    axins.scatter(
+        np.angle(edmd['eigenvalues']['eigv']),
+        np.absolute(edmd['eigenvalues']['eigv']),
+        color=C['edmd'],
+        marker='o',
+        label=r'Extended DMD',
+        **scatter_style,
+    )
+    axins.scatter(
+        np.angle(srconst['eigenvalues']['eigv']),
+        np.absolute(srconst['eigenvalues']['eigv']),
+        color=C['srconst'],
+        marker='s',
+        label=r'A.S. constraint',
+        **scatter_style,
+    )
+    axins.scatter(
+        np.angle(hinf['eigenvalues']['eigv']),
+        np.absolute(hinf['eigenvalues']['eigv']),
+        color=C['hinf'],
+        marker='D',
+        label=f'{HINF} regularizer',
+        **scatter_style,
+    )
+
+    w = 1
+    c = 'k'
+
+    thb = np.linspace(-thmax, thmax, 1000)
+    ax.plot(thb, rmax * np.ones_like(thb), c, linewidth=w)
+    rb = np.linspace(0, rmax, 1000)
+    ax.plot(thmax * np.ones_like(rb), rb, c, linewidth=w)
+    ax.plot(-thmax * np.ones_like(rb), rb, c, linewidth=w)
+
+    axins.annotate(
+        '',
+        xy=(thmax, rmax),
+        xycoords=ax.transData,
+        xytext=(thmax, rmax),
+        textcoords=axins.transData,
+        arrowprops={
+            'arrowstyle': '-',
+            'linewidth': w,
+            'color': c,
+            'shrinkA': 0,
+            'shrinkB': 0,
+        },
+    )
+    axins.annotate(
+        '',
+        xy=(-thmax, 0),
+        xycoords=ax.transData,
+        xytext=(-thmax, 0),
+        textcoords=axins.transData,
+        arrowprops={
+            'arrowstyle': '-',
+            'linewidth': w,
+            'color': c,
+            'shrinkA': 0,
+            'shrinkB': 0,
+        },
+    )
+
+    ax.legend(loc='lower left', ncol=1)
+
+    ax.set_rlim(0, 2.5)
+    ax.set_yticks([0, 0.5, 1, 1.5, 2, 2.5])
+
+    ax.set_xlabel(r'$\mathrm{Re}\{\lambda_i\}$')
+    ax.set_ylabel(r'$\mathrm{Im}\{\lambda_i\}$', labelpad=25)
+
+    for target in targets:
+        fig.savefig(target, bbox_inches='tight', pad_inches=0.1)
+
+
+def soft_robot_bode(dependencies: List[pathlib.Path],
+                    targets: List[pathlib.Path]) -> None:
+    """Save soft robot bode plot."""
+    deps = _open_hydra_pickles(dependencies)
+    edmd = deps['soft_robot__polynomial3_delay1__edmd']
+    srconst = deps['soft_robot__polynomial3_delay1__srconst_0999']
+    hinf = deps['soft_robot__polynomial3_delay1__hinf']
+    hinfw = deps['soft_robot__polynomial3_delay1__hinfw']
+
+    fig, ax = plt.subplots(constrained_layout=True)
+    ax.semilogx(
+        edmd['bode']['f_plot'],
+        edmd['bode']['mag_db'],
+        label='Extended DMD',
+        color=C['edmd'],
+    )
+    ax.semilogx(
+        srconst['bode']['f_plot'],
+        srconst['bode']['mag_db'],
+        label='A.S. constraint',
+        color=C['srconst'],
+    )
+    ax.semilogx(
+        hinf['bode']['f_plot'],
+        hinf['bode']['mag_db'],
+        label=f'{HINF} regularizer',
+        color=C['hinf'],
+    )
+
+    ax.legend(
+        # handlelength=1,
+        loc='upper right', )
+    ax.set_xlabel(r'$f$ (Hz)')
+    ax.set_ylabel(r'$\bar{\sigma}\left({\bf G}(e^{j \theta})\right)$ (dB)')
+    ax.set_ylim(10, 150)
+
+    for target in targets:
+        fig.savefig(target, bbox_inches='tight', pad_inches=0.1)
+
+
+def soft_robot_svd(dependencies: List[pathlib.Path],
+                   targets: List[pathlib.Path]) -> None:
+    """Save soft robot SVD plot."""
+    deps = _open_hydra_pickles(dependencies)
+    edmd = deps['soft_robot__polynomial3_delay1__edmd']
+    srconst = deps['soft_robot__polynomial3_delay1__srconst_0999']
+    hinf = deps['soft_robot__polynomial3_delay1__hinf']
+    hinfw = deps['soft_robot__polynomial3_delay1__hinfw']
+
+    def calc_sv(method: Dict) -> Tuple[np.ndarray, np.ndarray]:
+        U = method['matshow']['U']
+        nx = U.shape[0]
+        A = U[:, :nx]
+        B = U[:, nx:]
+        sv_A = linalg.svdvals(A)
+        sv_B = linalg.svdvals(B)
+        return (sv_A[sv_A > TOL], sv_B[sv_B > TOL])
+
+    sv_A_edmd, sv_B_edmd = calc_sv(edmd)
+    sv_A_srconst, sv_B_srconst = calc_sv(srconst)
+    sv_A_hinf, sv_B_hinf = calc_sv(hinf)
+    sv_A_hinfw, sv_B_hinfw = calc_sv(hinfw)
+
+    fig, ax = plt.subplots(1, 2, constrained_layout=True, sharey=True)
+
+    ax[0].semilogy(
+        sv_A_edmd,
+        marker='.',
+        color=C['edmd'],
+    )
+    ax[0].semilogy(
+        sv_A_srconst,
+        marker='.',
+        color=C['srconst'],
+    )
+    ax[0].semilogy(
+        sv_A_hinf,
+        marker='.',
+        color=C['hinf'],
+    )
+    ax[1].semilogy(
+        sv_B_edmd,
+        label='Extended DMD',
+        marker='.',
+        color=C['edmd'],
+    )
+    ax[1].semilogy(
+        sv_B_srconst,
+        label='A.S. constraint',
+        marker='.',
+        color=C['srconst'],
+    )
+    ax[1].semilogy(
+        sv_B_hinf,
+        label=f'{HINF} regularizer',
+        marker='.',
+        color=C['hinf'],
+    )
+
+    ax[0].set_ylim(10**-6, 10**4)
+    ax[0].set_yticks([10**n for n in range(-6, 5)])
+    ax[1].legend(loc='lower right')
+
+    ax[0].set_xlabel(r'$i$')
+    ax[0].set_ylabel(r'$\sigma_i(\bf{A})$')
+
+    ax[1].set_xlabel(r'$i$')
+    ax[1].set_ylabel(r'$\sigma_i(\bf{B})$')
+
+    for target in targets:
+        fig.savefig(target, bbox_inches='tight', pad_inches=0.1)
+
+
+def soft_robot_weights(dependencies: List[pathlib.Path],
+                       targets: List[pathlib.Path]) -> None:
+    """Save soft robot bode weights."""
+    deps = _open_hydra_pickles(dependencies)
+    hinf = deps['soft_robot__polynomial3_delay1__hinf']
+    hinfw = deps['soft_robot__polynomial3_delay1__hinfw']
+
+    fig, ax1 = plt.subplots(constrained_layout=True)
+    ax2 = ax1.twinx()
+
+    ax1.semilogx(
+        hinf['bode']['f_plot'],
+        hinf['bode']['mag_db'],
+        label=f'{HINF} regularizer',
+        color=C['hinf'],
+    )
+    ax1.semilogx(
+        hinfw['bode']['f_plot'],
+        hinfw['bode']['mag_db'],
+        label=f'Weighted {HINF} reg.',
+        color=C['hinfw'],
+    )
+    ax2.semilogx(
+        hinfw['weights']['w_dt'] / 2 / np.pi * hinfw['bode']['f_samp'],
+        hinfw['weights']['mag_dt_db'],
+        '--',
+        label=r'Weight',
+        color=C['hinfw_weight'],
+    )
+    ax1.set_xlabel('$f$ (Hz)')
+    ax1.set_ylabel(r'$\bar{\sigma}\left({\bf G}(e^{j \theta})\right)$ (dB)')
+    ax2.set_ylabel(r'Weight magnitude (dB)')
+    # ax2.spines['right'].set_color(C['hinfw_weight'])
+    ax1.legend(loc='upper left', title=r'\textbf{Left axis}')
+    ax2.legend(loc='upper right', title=r'\textbf{Right axis}')
+
+    b1 = 14
+    b2 = -4
+    n = 16
+    ax1.set_ylim(b1, b1 + n)
+    ax2.set_ylim(b2, b2 + n)
+    loc1 = matplotlib.ticker.LinearLocator(numticks=((n // 2) + 1))
+    loc2 = matplotlib.ticker.LinearLocator(numticks=((n // 2) + 1))
+    ax1.yaxis.set_major_locator(loc1)
+    ax2.yaxis.set_major_locator(loc2)
+
+    for target in targets:
+        fig.savefig(target, bbox_inches='tight', pad_inches=0.1)
+
+
+def soft_robot_scatter_by_method(dependencies: List[pathlib.Path],
+                                 targets: List[pathlib.Path]) -> None:
+    """Save soft robot bar chart grouped by method."""
+    deps = _open_hydra_pickles(dependencies)
+    edmd = deps['soft_robot__polynomial3_delay1__edmd']
+    srconst = deps['soft_robot__polynomial3_delay1__srconst_0999']
+    hinf = deps['soft_robot__polynomial3_delay1__hinf']
+    hinfw = deps['soft_robot__polynomial3_delay1__hinfw']
+
+    errors = pandas.DataFrame({
+        'Extended DMD': _calc_rmse(edmd),
+        'A.S. constraint': _calc_rmse(srconst),
+        f'{HINF} regularizer': _calc_rmse(hinf),
+        f'Weighted {HINF} reg.': _calc_rmse(hinfw),
+    })
+    means = errors.mean()
+    std = errors.std()
+
+    fig, ax = plt.subplots(constrained_layout=True)
+
+    c = [C['edmd'], C['srconst'], C['hinf'], C['hinfw']]
+    x = np.array([0, 1, 2, 3])
+    xm = x - 0.05
+    xp = x + 0.05
+
+    ax.errorbar(
+        xp,
+        means,
+        std,
+        fmt='.',
+        linewidth=1.5,
+        color='k',
+        zorder=2,
+        label=r'Mean \& S.D.',
+    )
+
+    style = {
+        's': 50 * 1.5,
+        'edgecolors': 'w',
+        'linewidth': 0.25 * 1.5,
+        'zorder': 2,
+    }
+    ax.scatter(x=xm, y=errors.iloc[0, :], c=c, marker='o', **style)
+    ax.scatter(x=xm, y=errors.iloc[1, :], c=c, marker='s', **style)
+    ax.scatter(x=xm, y=errors.iloc[2, :], c=c, marker='D', **style)
+    ax.scatter(x=xm, y=errors.iloc[3, :], c=c, marker='P', **style)
+
+    ax.scatter(x=-1, y=-1, c='k', marker='o', label=r'Valid. ep. \#1', **style)
+    ax.scatter(x=-1, y=-1, c='k', marker='s', label=r'Valid. ep. \#2', **style)
+    ax.scatter(x=-1, y=-1, c='k', marker='D', label=r'Valid. ep. \#3', **style)
+    ax.scatter(x=-1, y=-1, c='k', marker='P', label=r'Valid. ep. \#4', **style)
+
+    ax.set_xlabel('Regression method')
+    ax.set_ylabel('RMS Euclidean error (cm)')
+    ax.set_ylim(0, 1.4)
+    ax.set_xticks(x)
+    ax.set_xticklabels([errors.columns[i] for i in range(len(x))])
+
+    ax.legend(loc='upper right')
+
+    ax.set_xlim(-0.5, 3.5)
+
+    for target in targets:
+        fig.savefig(target, bbox_inches='tight', pad_inches=0.1)
+
+
+def soft_robot_scatter_dmdc(dependencies: List[pathlib.Path],
+                            targets: List[pathlib.Path]) -> None:
+    """Save soft robot bar chart grouped by method."""
+    deps = _open_hydra_pickles(dependencies)
+    srconst = deps['soft_robot__polynomial3_delay1__srconst_0999']
+    srconst_dmdc = deps['soft_robot__polynomial3_delay1__srconst_0999_dmdc']
+    hinf = deps['soft_robot__polynomial3_delay1__hinf']
+    hinf_dmdc = deps['soft_robot__polynomial3_delay1__hinf_dmdc']
+
+
+    errors = pandas.DataFrame({
+        'EDMD,\nA.S. constr.': _calc_rmse(srconst),
+        'DMDc,\nA.S. constr.': _calc_rmse(srconst_dmdc),
+        f'EDMD,\n{HINF} reg.': _calc_rmse(hinf),
+        f'DMDc,\n{HINF} reg.': _calc_rmse(hinf_dmdc),
+    })
+    means = errors.mean()
+    std = errors.std()
+
+    fig, ax = plt.subplots(constrained_layout=True)
+
+    c = [C['srconst'], C['srconst_dmdc'], C['hinf'], C['hinf_dmdc']]
+    x = np.array([0, 1, 2, 3])
+    xm = x - 0.05
+    xp = x + 0.05
+
+    ax.errorbar(
+        xp,
+        means,
+        std,
+        fmt='.',
+        linewidth=1.5,
+        color='k',
+        zorder=2,
+        label=r'Mean \& S.D.',
+    )
+
+    style = {
+        's': 50 * 1.5,
+        'edgecolors': 'w',
+        'linewidth': 0.25 * 1.5,
+        'zorder': 2,
+    }
+    ax.scatter(x=xm, y=errors.iloc[0, :], c=c, marker='o', **style)
+    ax.scatter(x=xm, y=errors.iloc[1, :], c=c, marker='s', **style)
+    ax.scatter(x=xm, y=errors.iloc[2, :], c=c, marker='D', **style)
+    ax.scatter(x=xm, y=errors.iloc[3, :], c=c, marker='P', **style)
+
+    ax.scatter(x=-1, y=-1, c='k', marker='o', label=r'Valid. ep. \#1', **style)
+    ax.scatter(x=-1, y=-1, c='k', marker='s', label=r'Valid. ep. \#2', **style)
+    ax.scatter(x=-1, y=-1, c='k', marker='D', label=r'Valid. ep. \#3', **style)
+    ax.scatter(x=-1, y=-1, c='k', marker='P', label=r'Valid. ep. \#4', **style)
+
+    ax.set_xlabel('Regression method')
+    ax.set_ylabel('RMS Euclidean error (cm)')
+    ax.set_ylim(0, 2.25)
+    ax.set_xticks(x)
+    ax.set_xticklabels([errors.columns[i] for i in range(len(x))])
+
+    ax.legend(loc='upper right')
+
+    ax.set_xlim(-0.5, 3.5)
+
+    for target in targets:
+        fig.savefig(target, bbox_inches='tight', pad_inches=0.1)
+
+
+def soft_robot_dmdc_svd(dependencies: List[pathlib.Path],
+                        targets: List[pathlib.Path]) -> None:
+    """Save soft robot DMDc SVD plot."""
+    deps = _open_hydra_pickles(dependencies)
+    srconst = deps['soft_robot__polynomial3_delay1__srconst_0999']
+    srconst_dmdc = deps['soft_robot__polynomial3_delay1__srconst_0999_dmdc']
+    hinf = deps['soft_robot__polynomial3_delay1__hinf']
+    hinf_dmdc = deps['soft_robot__polynomial3_delay1__hinf_dmdc']
+
+    def calc_sv(method: Dict) -> Tuple[np.ndarray, np.ndarray]:
+        U = method['matshow']['U']
+        nx = U.shape[0]
+        A = U[:, :nx]
+        B = U[:, nx:]
+        sv_A = linalg.svdvals(A)
+        sv_B = linalg.svdvals(B)
+        return (sv_A[sv_A > TOL], sv_B[sv_B > TOL])
+
+    sv_A_srconst, sv_B_srconst = calc_sv(srconst)
+    sv_A_hinf, sv_B_hinf = calc_sv(hinf)
+    sv_A_hinf_dmdc, sv_B_hinf_dmdc = calc_sv(hinf_dmdc)
+    sv_A_srconst_dmdc, sv_B_srconst_dmdc = calc_sv(srconst_dmdc)
+
+    fig, ax = plt.subplots(1, 2, constrained_layout=True, sharey=True)
+
+    ax[0].semilogy(
+        sv_A_srconst,
+        marker='.',
+        color=C['srconst'],
+    )
+    ax[0].semilogy(
+        sv_A_hinf,
+        marker='.',
+        color=C['hinf'],
+    )
+    ax[0].semilogy(
+        sv_A_srconst_dmdc,
+        marker='.',
+        color=C['srconst_dmdc'],
+    )
+    ax[0].semilogy(
+        sv_A_hinf_dmdc,
+        marker='.',
+        color=C['hinf_dmdc'],
+    )
+
+    ax[1].semilogy(
+        sv_B_srconst,
+        label='EDMD, A.S. constr.',
+        marker='.',
+        color=C['srconst'],
+    )
+    ax[1].semilogy(
+        sv_B_hinf,
+        label=f'EDMD, {HINF} reg.',
+        marker='.',
+        color=C['hinf'],
+    )
+    ax[1].semilogy(
+        sv_B_srconst_dmdc,
+        label='DMDc, A.S. constr.',
+        marker='.',
+        color=C['srconst_dmdc'],
+    )
+    ax[1].semilogy(
+        sv_B_hinf_dmdc,
+        label=f'DMDc, {HINF} reg.',
+        marker='.',
+        color=C['hinf_dmdc'],
+    )
+
+    ax[0].set_ylim(10**-6, 10**4)
+    ax[0].set_yticks([10**n for n in range(-6, 5)])
+    ax[1].legend(loc='lower right')
+
+    ax[0].set_xlabel(r'$i$')
+    ax[0].set_ylabel(r'$\sigma_i(\bf{A})$')
+
+    ax[1].set_xlabel(r'$i$')
+    ax[1].set_ylabel(r'$\sigma_i(\bf{B})$')
+
+    for target in targets:
+        fig.savefig(target, bbox_inches='tight', pad_inches=0.1)
+
+
+def soft_robot_dmdc_bode(dependencies: List[pathlib.Path],
+                         targets: List[pathlib.Path]) -> None:
+    """Save soft robot DMDc bode plot."""
+    deps = _open_hydra_pickles(dependencies)
+    srconst = deps['soft_robot__polynomial3_delay1__srconst_0999']
+    srconst_dmdc = deps['soft_robot__polynomial3_delay1__srconst_0999_dmdc']
+    hinf = deps['soft_robot__polynomial3_delay1__hinf']
+    hinf_dmdc = deps['soft_robot__polynomial3_delay1__hinf_dmdc']
+
+    fig, ax = plt.subplots(constrained_layout=True)
+    ax.semilogx(
+        srconst['bode']['f_plot'],
+        srconst['bode']['mag_db'],
+        label='EDMD, A.S. constr.',
+        color=C['srconst'],
+    )
+    ax.semilogx(
+        hinf['bode']['f_plot'],
+        hinf['bode']['mag_db'],
+        label=f'EDMD, {HINF} reg.',
+        color=C['hinf'],
+    )
+    ax.semilogx(
+        srconst_dmdc['bode']['f_plot'],
+        srconst_dmdc['bode']['mag_db'],
+        label='DMDc, A.S. constr.',
+        color=C['srconst_dmdc'],
+    )
+    ax.semilogx(
+        hinf_dmdc['bode']['f_plot'],
+        hinf_dmdc['bode']['mag_db'],
+        label=f'DMDc, {HINF} reg.',
+        color=C['hinf_dmdc'],
+    )
+
+    ax.legend(loc='upper right')
+    ax.set_xlabel('$f$ (Hz)')
+    ax.set_ylabel(r'$\bar{\sigma}\left({\bf G}(e^{j \theta})\right)$ (dB)')
+    ax.set_ylim(10, 150)
+
+    for target in targets:
+        fig.savefig(target, bbox_inches='tight', pad_inches=0.1)
+
+
+def soft_robot_ram(dependencies: List[pathlib.Path],
+                   targets: List[pathlib.Path]) -> None:
+    """Save soft robot performance plot."""
+    srconst = _load_dat(dependencies[0])
+    srconst_dmdc = _load_dat(dependencies[1])
+    hinf = _load_dat(dependencies[2])
+    hinf_dmdc = _load_dat(dependencies[3])
+
+    stats = pandas.DataFrame({
+        'label': [
+            'EDMD,\nA.S. constr.',
+            'DMDc,\nA.S. constr.',
+            f'EDMD,\n{HINF} reg.',
+            f'DMDc,\n{HINF} reg.',
+        ],
+        'ram': [
+            srconst[0],
+            srconst_dmdc[0],
+            hinf[0],
+            hinf_dmdc[0],
+        ],
+    })
+
+    fig, ax = plt.subplots(constrained_layout=True)
+    stats.plot(
+        x='label',
+        y='ram',
+        kind='bar',
+        ax=ax,
+        rot=0,
+        color=[
+            C['srconst'],
+            C['srconst_dmdc'],
+            C['hinf'],
+            C['hinf_dmdc'],
+        ],
+        legend=False,
+        zorder=2,
+    )
+
+    ax.grid(axis='x')
+    ax.set_xlabel('Regression method')
+    ax.set_ylabel('Peak memory consumption (GiB)')
+
+    for target in targets:
+        fig.savefig(target, bbox_inches='tight', pad_inches=0.1)
+
+
+def soft_robot_exec(dependencies: List[pathlib.Path],
+                    targets: List[pathlib.Path]) -> None:
+    """Save soft robot performance plot."""
+    srconst = _load_dat(dependencies[0])
+    srconst_dmdc = _load_dat(dependencies[1])
+    hinf = _load_dat(dependencies[2])
+    hinf_dmdc = _load_dat(dependencies[3])
+
+    stats = pandas.DataFrame({
+        'label': [
+            'EDMD,\nA.S. constr.',
+            'DMDc,\nA.S. constr.',
+            f'EDMD,\n{HINF} reg.',
+            f'DMDc,\n{HINF} reg.',
+        ],
+        'time': [
+            srconst[1] / 60,
+            srconst_dmdc[1] / 60,
+            hinf[1] / 60,
+            hinf_dmdc[1] / 60,
+        ],
+    })
+
+    fig, ax = plt.subplots(constrained_layout=True)
+    stats.plot(
+        x='label',
+        y='time',
+        kind='bar',
+        ax=ax,
+        rot=0,
+        color=[
+            C['srconst'],
+            C['srconst_dmdc'],
+            C['hinf'],
+            C['hinf_dmdc'],
+        ],
+        legend=False,
+        zorder=2,
+    )
+
+    ax.grid(axis='x')
+    ax.set_xlabel('Regression method')
+    ax.set_ylabel('Execution time per iteration (min)')
+
+    for target in targets:
+        fig.savefig(target, bbox_inches='tight', pad_inches=0.1)
+
+
+def _calc_rmse(loaded_pickle):
+    """Calculate RMSEs from a loaded results pickle."""
+    datasets = [f'timeseries_{n}.0' for n in ['13', '14', '15', '16']]
+    rmses = []
+    for ds in datasets:
+        pred = loaded_pickle[ds]['X_prediction'][:, 1:]
+        vald = loaded_pickle[ds]['X_validation'][:, 1:(pred.shape[1] + 1)]
+        err = np.linalg.norm(vald - pred, axis=1)
+        rmse = np.sqrt(np.mean(err**2))
+        rmses.append(rmse)
+    return rmses
+
+
+def _open_dat_file(path: pathlib.Path) -> Tuple[float, float]:
+    """Read a ``dat`` file and return the max RAM and execution time."""
+    with open(path, 'r') as f:
+        data = f.read()
+
+    # Define regexes
+    mem_re = re.compile('MEM (.*) .*')
+    func_re = re.compile('FUNC .* .* (.*) .* (.*) .*')
+
+    # Iterate through lines
+    mems = []
+    times = []
+    lines = data.split('\n')
+    for line in lines:
+        # Match regexes
+        mem_match = mem_re.findall(line)
+        func_match = func_re.findall(line)
+        # Extract matches
+        if mem_match:
+            mems.append(float(mem_match[0]))
+        elif func_match:
+            t2 = float(func_match[0][1])
+            t1 = float(func_match[0][0])
+            times.append(t2 - t1)
+
+    # Calculate stats
+    max_mem = np.max(mems) / 1024  # MiB to GiB
+    if len(times) == 0:
+        time = 0.0
+    elif len(times) == 1:
+        time = times[0]
+    else:
+        raise ValueError('More than one `FUNC` in `dat` file.')
+
+    return (max_mem, time)
+
+
+def _open_hydra_pickles(paths: List[str]) -> Tuple[str, Dict[str, Any]]:
     """Open pickles in directory of Hydra log and return dict of data."""
-    with open(path, 'rb') as f:
-        opened_pickle = pickle.load(f)
-    return opened_pickle
+    loaded_data = {}
+    for path in paths:
+        name = pathlib.Path(path).parent.name
+        with open(path, 'rb') as f:
+            opened_pickle = pickle.load(f)
+        loaded_data[name] = opened_pickle
+    return loaded_data
