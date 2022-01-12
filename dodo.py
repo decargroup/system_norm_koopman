@@ -184,6 +184,38 @@ def task_experiment() -> Dict[str, Any]:
         }
 
 
+def task_profile() -> Dict[str, Any]:
+    """Profile an experiment with Memory Profiler."""
+    dataset = BUILD_DIRS['datasets'].joinpath('soft_robot.pickle')
+    lifting_function = LIFTING_FUNCTIONS_DIR.joinpath('polynomial3_delay1.yaml')
+    regressors = [
+        REGRESSOR_DIR.joinpath('srconst_0999.yaml'),
+        REGRESSOR_DIR.joinpath('srconst_0999_dmdc.yaml'),
+        REGRESSOR_DIR.joinpath('hinf.yaml'),
+        REGRESSOR_DIR.joinpath('hinf_dmdc.yaml'),
+    ]
+    for regressor in regressors:
+        prof_dir = BUILD_DIRS['mprof_outputs'].joinpath(f'{regressor.stem}.dat')
+        yield {
+            'name': regressor.stem,
+            'actions': [
+                f'mprof run --include-children --output {prof_dir} '
+                f'--python {WORKING_DIR}/run_experiment.py '
+                'dataset=soft_robot lifting_functions=polynomial3_delay1 '
+                f'regressor={regressor.stem} regressor.regressor.max_iter=1 '
+                'profile=True'
+            ],
+            'file_dep': [
+                dataset,
+                lifting_function,
+                regressor,
+            ],
+            'task_dep': ['directory:build/mprof_outputs'],
+            'targets': [prof_dir],
+            'clean': True,
+        }
+
+
 def task_plot() -> Dict[str, Any]:
     """Plot a figure."""
     for action in [faster_eig, faster_error]:
@@ -1008,7 +1040,6 @@ def soft_robot_scatter_dmdc(dependencies: List[pathlib.Path],
     hinf = deps['soft_robot__polynomial3_delay1__hinf']
     hinf_dmdc = deps['soft_robot__polynomial3_delay1__hinf_dmdc']
 
-
     errors = pandas.DataFrame({
         'EDMD,\nA.S. constr.': _calc_rmse(srconst),
         'DMDc,\nA.S. constr.': _calc_rmse(srconst_dmdc),
@@ -1195,100 +1226,99 @@ def soft_robot_dmdc_bode(dependencies: List[pathlib.Path],
         fig.savefig(target, bbox_inches='tight', pad_inches=0.1)
 
 
-def soft_robot_ram(dependencies: List[pathlib.Path],
-                   targets: List[pathlib.Path]) -> None:
-    """Save soft robot performance plot."""
-    srconst = _load_dat(dependencies[0])
-    srconst_dmdc = _load_dat(dependencies[1])
-    hinf = _load_dat(dependencies[2])
-    hinf_dmdc = _load_dat(dependencies[3])
+# def soft_robot_ram(dependencies: List[pathlib.Path],
+#                    targets: List[pathlib.Path]) -> None:
+#     """Save soft robot performance plot."""
+#     srconst = _load_dat(dependencies[0])
+#     srconst_dmdc = _load_dat(dependencies[1])
+#     hinf = _load_dat(dependencies[2])
+#     hinf_dmdc = _load_dat(dependencies[3])
 
-    stats = pandas.DataFrame({
-        'label': [
-            'EDMD,\nA.S. constr.',
-            'DMDc,\nA.S. constr.',
-            f'EDMD,\n{HINF} reg.',
-            f'DMDc,\n{HINF} reg.',
-        ],
-        'ram': [
-            srconst[0],
-            srconst_dmdc[0],
-            hinf[0],
-            hinf_dmdc[0],
-        ],
-    })
+#     stats = pandas.DataFrame({
+#         'label': [
+#             'EDMD,\nA.S. constr.',
+#             'DMDc,\nA.S. constr.',
+#             f'EDMD,\n{HINF} reg.',
+#             f'DMDc,\n{HINF} reg.',
+#         ],
+#         'ram': [
+#             srconst[0],
+#             srconst_dmdc[0],
+#             hinf[0],
+#             hinf_dmdc[0],
+#         ],
+#     })
 
-    fig, ax = plt.subplots(constrained_layout=True)
-    stats.plot(
-        x='label',
-        y='ram',
-        kind='bar',
-        ax=ax,
-        rot=0,
-        color=[
-            C['srconst'],
-            C['srconst_dmdc'],
-            C['hinf'],
-            C['hinf_dmdc'],
-        ],
-        legend=False,
-        zorder=2,
-    )
+#     fig, ax = plt.subplots(constrained_layout=True)
+#     stats.plot(
+#         x='label',
+#         y='ram',
+#         kind='bar',
+#         ax=ax,
+#         rot=0,
+#         color=[
+#             C['srconst'],
+#             C['srconst_dmdc'],
+#             C['hinf'],
+#             C['hinf_dmdc'],
+#         ],
+#         legend=False,
+#         zorder=2,
+#     )
 
-    ax.grid(axis='x')
-    ax.set_xlabel('Regression method')
-    ax.set_ylabel('Peak memory consumption (GiB)')
+#     ax.grid(axis='x')
+#     ax.set_xlabel('Regression method')
+#     ax.set_ylabel('Peak memory consumption (GiB)')
 
-    for target in targets:
-        fig.savefig(target, bbox_inches='tight', pad_inches=0.1)
+#     for target in targets:
+#         fig.savefig(target, bbox_inches='tight', pad_inches=0.1)
 
+# def soft_robot_exec(dependencies: List[pathlib.Path],
+#                     targets: List[pathlib.Path]) -> None:
+#     """Save soft robot performance plot."""
+#     srconst = _load_dat(dependencies[0])
+#     srconst_dmdc = _load_dat(dependencies[1])
+#     hinf = _load_dat(dependencies[2])
+#     hinf_dmdc = _load_dat(dependencies[3])
 
-def soft_robot_exec(dependencies: List[pathlib.Path],
-                    targets: List[pathlib.Path]) -> None:
-    """Save soft robot performance plot."""
-    srconst = _load_dat(dependencies[0])
-    srconst_dmdc = _load_dat(dependencies[1])
-    hinf = _load_dat(dependencies[2])
-    hinf_dmdc = _load_dat(dependencies[3])
+#     stats = pandas.DataFrame({
+#         'label': [
+#             'EDMD,\nA.S. constr.',
+#             'DMDc,\nA.S. constr.',
+#             f'EDMD,\n{HINF} reg.',
+#             f'DMDc,\n{HINF} reg.',
+#         ],
+#         'time': [
+#             srconst[1] / 60,
+#             srconst_dmdc[1] / 60,
+#             hinf[1] / 60,
+#             hinf_dmdc[1] / 60,
+#         ],
+#     })
 
-    stats = pandas.DataFrame({
-        'label': [
-            'EDMD,\nA.S. constr.',
-            'DMDc,\nA.S. constr.',
-            f'EDMD,\n{HINF} reg.',
-            f'DMDc,\n{HINF} reg.',
-        ],
-        'time': [
-            srconst[1] / 60,
-            srconst_dmdc[1] / 60,
-            hinf[1] / 60,
-            hinf_dmdc[1] / 60,
-        ],
-    })
+#     fig, ax = plt.subplots(constrained_layout=True)
+#     stats.plot(
+#         x='label',
+#         y='time',
+#         kind='bar',
+#         ax=ax,
+#         rot=0,
+#         color=[
+#             C['srconst'],
+#             C['srconst_dmdc'],
+#             C['hinf'],
+#             C['hinf_dmdc'],
+#         ],
+#         legend=False,
+#         zorder=2,
+#     )
 
-    fig, ax = plt.subplots(constrained_layout=True)
-    stats.plot(
-        x='label',
-        y='time',
-        kind='bar',
-        ax=ax,
-        rot=0,
-        color=[
-            C['srconst'],
-            C['srconst_dmdc'],
-            C['hinf'],
-            C['hinf_dmdc'],
-        ],
-        legend=False,
-        zorder=2,
-    )
+#     ax.grid(axis='x')
+#     ax.set_xlabel('Regression method')
+#     ax.set_ylabel('Execution time per iteration (min)')
 
-    ax.grid(axis='x')
-    ax.set_xlabel('Regression method')
-    ax.set_ylabel('Execution time per iteration (min)')
-
-    for target in targets:
-        fig.savefig(target, bbox_inches='tight', pad_inches=0.1)
+#     for target in targets:
+#         fig.savefig(target, bbox_inches='tight', pad_inches=0.1)
 
 
 def _calc_rmse(loaded_pickle):
