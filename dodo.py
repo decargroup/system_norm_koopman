@@ -195,15 +195,17 @@ def task_profile() -> Dict[str, Any]:
         REGRESSOR_DIR.joinpath('hinf_dmdc.yaml'),
     ]
     for regressor in regressors:
+        exp_name = f'{dataset.stem}__{lifting_function.stem}__{regressor.stem}__max_iter_1'
+        exp_dir = BUILD_DIRS['mprof_outputs'].joinpath(exp_name)
         prof_dir = BUILD_DIRS['mprof_outputs'].joinpath(f'{regressor.stem}.dat')
         yield {
             'name': regressor.stem,
             'actions': [
                 f'mprof run --include-children --output {prof_dir} '
                 f'--python {WORKING_DIR}/run_experiment.py '
-                'dataset=soft_robot lifting_functions=polynomial3_delay1 '
+                f'dataset={dataset} lifting_functions={lifting_function.stem} '
                 f'regressor={regressor.stem} regressor.regressor.max_iter=1 '
-                'profile=True'
+                f'profile=True hydra.run.dir={exp_dir}'
             ],
             'file_dep': [
                 dataset,
@@ -211,8 +213,8 @@ def task_profile() -> Dict[str, Any]:
                 regressor,
             ],
             'task_dep': ['directory:build/mprof_outputs'],
-            'targets': [prof_dir],
-            'clean': True,
+            'targets': [prof_dir, exp_dir.joinpath(HYDRA_PICKLE)],
+            'clean': True,  # TODO ADD CLEAN
         }
 
 
