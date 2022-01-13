@@ -1,6 +1,7 @@
 import itertools
 import pathlib
 import pickle
+import re
 import shutil
 from typing import Any, Dict, List, Tuple
 
@@ -8,6 +9,7 @@ import doit
 import matplotlib
 import numpy as np
 import pandas
+import matplotlib
 from matplotlib import pyplot as plt
 from scipy import io, linalg
 
@@ -36,18 +38,6 @@ REGRESSOR_DIR = CONFIG_DIR.joinpath('regressor')
 EXPERIMENT = WORKING_DIR.joinpath('run_experiment.py')
 
 HYDRA_PICKLE = 'run_experiment.pickle'
-
-#     # Soft robot performance plots
-#     ([
-#         soft_robot_exec,
-#         soft_robot_ram,
-#     ], [
-#         'srconst_0999.dat',
-#         'srconst_0999_dmdc.dat',
-#         'hinf.dat',
-#         'hinf_dmdc.dat',
-#     ]),
-# ]
 
 # SVD cutoff
 TOL = 1e-12
@@ -87,8 +77,9 @@ C = {
 }
 # Matplotlib settings
 plt.rc('figure', dpi=100)
-plt.rc('text', usetex=True)
-plt.rc('font', family='serif', size=12)
+if matplotlib.checkdep_usetex(True):
+    plt.rc('text', usetex=True)
+    plt.rc('font', family='serif', size=12)
 plt.rc('lines', linewidth=2)
 plt.rc('axes', grid=True)
 plt.rc('grid', linestyle='--')
@@ -309,6 +300,31 @@ def task_plot() -> Dict[str, Any]:
                 BUILD_DIRS['hydra_outputs'].joinpath(
                     'soft_robot__polynomial3_delay1__hinf_dmdc').joinpath(
                         HYDRA_PICKLE),
+            ],
+            'task_dep': [
+                'directory:build/figures',
+                'directory:build/cvd_figures',
+            ],
+            'targets': [
+                BUILD_DIRS['figures'].joinpath(f'{action.__name__}.pdf'),
+                BUILD_DIRS['cvd_figures'].joinpath(f'{action.__name__}.png'),
+            ],
+            'clean':
+            True,
+        }
+    for action in [
+            soft_robot_ram,
+            soft_robot_exec,
+    ]:
+        yield {
+            'name':
+            action.__name__,
+            'actions': [action],
+            'file_dep': [
+                BUILD_DIRS['mprof_outputs'].joinpath('srconst_0999.dat'),
+                BUILD_DIRS['mprof_outputs'].joinpath('srconst_0999_dmdc.dat'),
+                BUILD_DIRS['mprof_outputs'].joinpath('hinf.dat'),
+                BUILD_DIRS['mprof_outputs'].joinpath('hinf_dmdc.dat'),
             ],
             'task_dep': [
                 'directory:build/figures',
@@ -1234,99 +1250,100 @@ def soft_robot_dmdc_bode(dependencies: List[pathlib.Path],
         fig.savefig(target, bbox_inches='tight', pad_inches=0.1)
 
 
-# def soft_robot_ram(dependencies: List[pathlib.Path],
-#                    targets: List[pathlib.Path]) -> None:
-#     """Save soft robot performance plot."""
-#     srconst = _load_dat(dependencies[0])
-#     srconst_dmdc = _load_dat(dependencies[1])
-#     hinf = _load_dat(dependencies[2])
-#     hinf_dmdc = _load_dat(dependencies[3])
+def soft_robot_ram(dependencies: List[pathlib.Path],
+                   targets: List[pathlib.Path]) -> None:
+    """Save soft robot performance plot."""
+    deps = _open_dat_files(dependencies)
+    srconst = deps['srconst_0999']
+    srconst_dmdc = deps['srconst_0999_dmdc']
+    hinf = deps['hinf']
+    hinf_dmdc = deps['hinf_dmdc']
+    # Create dataframe
+    stats = pandas.DataFrame({
+        'label': [
+            'EDMD,\nA.S. constr.',
+            'DMDc,\nA.S. constr.',
+            f'EDMD,\n{HINF} reg.',
+            f'DMDc,\n{HINF} reg.',
+        ],
+        'ram': [
+            srconst[0],
+            srconst_dmdc[0],
+            hinf[0],
+            hinf_dmdc[0],
+        ],
+    })
+    # Plot dataframe
+    fig, ax = plt.subplots(constrained_layout=True)
+    stats.plot(
+        x='label',
+        y='ram',
+        kind='bar',
+        ax=ax,
+        rot=0,
+        color=[
+            C['srconst'],
+            C['srconst_dmdc'],
+            C['hinf'],
+            C['hinf_dmdc'],
+        ],
+        legend=False,
+        zorder=2,
+    )
+    ax.grid(axis='x')
+    ax.set_xlabel('Regression method')
+    ax.set_ylabel('Peak memory consumption (GiB)')
+    # Save plots
+    for target in targets:
+        fig.savefig(target, bbox_inches='tight', pad_inches=0.1)
 
-#     stats = pandas.DataFrame({
-#         'label': [
-#             'EDMD,\nA.S. constr.',
-#             'DMDc,\nA.S. constr.',
-#             f'EDMD,\n{HINF} reg.',
-#             f'DMDc,\n{HINF} reg.',
-#         ],
-#         'ram': [
-#             srconst[0],
-#             srconst_dmdc[0],
-#             hinf[0],
-#             hinf_dmdc[0],
-#         ],
-#     })
 
-#     fig, ax = plt.subplots(constrained_layout=True)
-#     stats.plot(
-#         x='label',
-#         y='ram',
-#         kind='bar',
-#         ax=ax,
-#         rot=0,
-#         color=[
-#             C['srconst'],
-#             C['srconst_dmdc'],
-#             C['hinf'],
-#             C['hinf_dmdc'],
-#         ],
-#         legend=False,
-#         zorder=2,
-#     )
-
-#     ax.grid(axis='x')
-#     ax.set_xlabel('Regression method')
-#     ax.set_ylabel('Peak memory consumption (GiB)')
-
-#     for target in targets:
-#         fig.savefig(target, bbox_inches='tight', pad_inches=0.1)
-
-# def soft_robot_exec(dependencies: List[pathlib.Path],
-#                     targets: List[pathlib.Path]) -> None:
-#     """Save soft robot performance plot."""
-#     srconst = _load_dat(dependencies[0])
-#     srconst_dmdc = _load_dat(dependencies[1])
-#     hinf = _load_dat(dependencies[2])
-#     hinf_dmdc = _load_dat(dependencies[3])
-
-#     stats = pandas.DataFrame({
-#         'label': [
-#             'EDMD,\nA.S. constr.',
-#             'DMDc,\nA.S. constr.',
-#             f'EDMD,\n{HINF} reg.',
-#             f'DMDc,\n{HINF} reg.',
-#         ],
-#         'time': [
-#             srconst[1] / 60,
-#             srconst_dmdc[1] / 60,
-#             hinf[1] / 60,
-#             hinf_dmdc[1] / 60,
-#         ],
-#     })
-
-#     fig, ax = plt.subplots(constrained_layout=True)
-#     stats.plot(
-#         x='label',
-#         y='time',
-#         kind='bar',
-#         ax=ax,
-#         rot=0,
-#         color=[
-#             C['srconst'],
-#             C['srconst_dmdc'],
-#             C['hinf'],
-#             C['hinf_dmdc'],
-#         ],
-#         legend=False,
-#         zorder=2,
-#     )
-
-#     ax.grid(axis='x')
-#     ax.set_xlabel('Regression method')
-#     ax.set_ylabel('Execution time per iteration (min)')
-
-#     for target in targets:
-#         fig.savefig(target, bbox_inches='tight', pad_inches=0.1)
+def soft_robot_exec(dependencies: List[pathlib.Path],
+                    targets: List[pathlib.Path]) -> None:
+    """Save soft robot performance plot."""
+    deps = _open_dat_files(dependencies)
+    srconst = deps['srconst_0999']
+    srconst_dmdc = deps['srconst_0999_dmdc']
+    hinf = deps['hinf']
+    hinf_dmdc = deps['hinf_dmdc']
+    # Create dataframe
+    stats = pandas.DataFrame({
+        'label': [
+            'EDMD,\nA.S. constr.',
+            'DMDc,\nA.S. constr.',
+            f'EDMD,\n{HINF} reg.',
+            f'DMDc,\n{HINF} reg.',
+        ],
+        'time': [
+            srconst[1],
+            srconst_dmdc[1],
+            hinf[1],
+            hinf_dmdc[1],
+        ],
+    })
+    # Plot dataframe
+    fig, ax = plt.subplots(constrained_layout=True)
+    stats.plot(
+        x='label',
+        y='time',
+        kind='bar',
+        ax=ax,
+        rot=0,
+        color=[
+            C['srconst'],
+            C['srconst_dmdc'],
+            C['hinf'],
+            C['hinf_dmdc'],
+        ],
+        legend=False,
+        zorder=2,
+    )
+    ax.grid(axis='x')
+    ax.set_xlabel('Regression method')
+    ax.set_ylabel('Execution time per iteration (min)')
+    # Save plots
+    for target in targets:
+        fig.savefig(target, bbox_inches='tight', pad_inches=0.1)
 
 
 def _calc_rmse(loaded_pickle):
@@ -1342,41 +1359,43 @@ def _calc_rmse(loaded_pickle):
     return rmses
 
 
-def _open_dat_file(path: pathlib.Path) -> Tuple[float, float]:
+def _open_dat_files(paths: List[str]) -> Dict[str, Tuple[float, float]]:
     """Read a ``dat`` file and return the max RAM and execution time."""
-    with open(path, 'r') as f:
-        data = f.read()
-
-    # Define regexes
-    mem_re = re.compile('MEM (.*) .*')
-    func_re = re.compile('FUNC .* .* (.*) .* (.*) .*')
-
-    # Iterate through lines
-    mems = []
-    times = []
-    lines = data.split('\n')
-    for line in lines:
-        # Match regexes
-        mem_match = mem_re.findall(line)
-        func_match = func_re.findall(line)
-        # Extract matches
-        if mem_match:
-            mems.append(float(mem_match[0]))
-        elif func_match:
-            t2 = float(func_match[0][1])
-            t1 = float(func_match[0][0])
-            times.append(t2 - t1)
-
-    # Calculate stats
-    max_mem = np.max(mems) / 1024  # MiB to GiB
-    if len(times) == 0:
-        time = 0.0
-    elif len(times) == 1:
-        time = times[0]
-    else:
-        raise ValueError('More than one `FUNC` in `dat` file.')
-
-    return (max_mem, time)
+    loaded_data = {}
+    for path in paths:
+        # Load file
+        name = pathlib.Path(path).stem
+        with open(path, 'r') as f:
+            data = f.read()
+        # Define regexes
+        mem_re = re.compile('MEM (.*) .*')
+        func_re = re.compile('FUNC .* .* (.*) .* (.*) .*')
+        # Iterate through lines
+        mems = []
+        times = []
+        lines = data.split('\n')
+        for line in lines:
+            # Match regexes
+            mem_match = mem_re.findall(line)
+            func_match = func_re.findall(line)
+            # Extract matches
+            if mem_match:
+                mems.append(float(mem_match[0]))
+            elif func_match:
+                t2 = float(func_match[0][1])
+                t1 = float(func_match[0][0])
+                times.append(t2 - t1)
+        # Calculate stats
+        max_mem = np.max(mems) / 1024  # MiB to GiB
+        if len(times) == 0:
+            time = 0.0
+        elif len(times) == 1:
+            time = times[0] / 60  # sec to min
+        else:
+            raise ValueError('More than one `FUNC` in `dat` file.')
+        # Get file name
+        loaded_data[name] = (max_mem, time)
+    return loaded_data
 
 
 def _open_hydra_pickles(paths: List[str]) -> Tuple[str, Dict[str, Any]]:
