@@ -187,7 +187,8 @@ def task_experiment() -> Dict[str, Any]:
 def task_profile() -> Dict[str, Any]:
     """Profile an experiment with Memory Profiler."""
     dataset = BUILD_DIRS['datasets'].joinpath('soft_robot.pickle')
-    lifting_function = LIFTING_FUNCTIONS_DIR.joinpath('polynomial3_delay1.yaml')
+    lifting_function = LIFTING_FUNCTIONS_DIR.joinpath(
+        'polynomial3_delay1.yaml')
     regressors = [
         REGRESSOR_DIR.joinpath('srconst_0999.yaml'),
         REGRESSOR_DIR.joinpath('srconst_0999_dmdc.yaml'),
@@ -197,9 +198,11 @@ def task_profile() -> Dict[str, Any]:
     for regressor in regressors:
         exp_name = f'{dataset.stem}__{lifting_function.stem}__{regressor.stem}__max_iter_1'
         exp_dir = BUILD_DIRS['mprof_outputs'].joinpath(exp_name)
-        prof_dir = BUILD_DIRS['mprof_outputs'].joinpath(f'{regressor.stem}.dat')
+        prof_dir = BUILD_DIRS['mprof_outputs'].joinpath(
+            f'{regressor.stem}.dat')
         yield {
-            'name': regressor.stem,
+            'name':
+            regressor.stem,
             'actions': [
                 f'mprof run --include-children --output {prof_dir} '
                 f'--python {WORKING_DIR}/run_experiment.py '
@@ -214,7 +217,10 @@ def task_profile() -> Dict[str, Any]:
             ],
             'task_dep': ['directory:build/mprof_outputs'],
             'targets': [prof_dir, exp_dir.joinpath(HYDRA_PICKLE)],
-            'clean': True,  # TODO ADD CLEAN
+            'clean': [
+                doit.task.clean_targets,
+                (shutil.rmtree, [exp_dir, True]),
+            ],
         }
 
 
