@@ -1,3 +1,5 @@
+"""Define and automate tasks with ``doit``."""
+
 import itertools
 import pathlib
 import pickle
@@ -9,17 +11,23 @@ import doit
 import matplotlib
 import numpy as np
 import pandas
-import matplotlib
 from matplotlib import pyplot as plt
 from scipy import io, linalg
 
-# DOIT_CONFIG = {'default_tasks': []}
+
+# --------------------------------------------------------------------------- #
+# Configuration and constants
+# --------------------------------------------------------------------------- #
+
+
+# Configure doit to run plot tasks by default
+DOIT_CONFIG = {'default_tasks': ['plot']}
 
 # Directory containing ``dodo.py``
 WORKING_DIR = pathlib.Path(__file__).parent.resolve()
-# Path to ``build`` folder
+# Path to ``build/`` folder
 BUILD_DIR = WORKING_DIR.joinpath('build')
-# Dict of subfolders in ``build``
+# Dict of subfolders in ``build/``
 BUILD_DIRS = {
     dir: BUILD_DIR.joinpath(dir)
     for dir in [
@@ -30,17 +38,24 @@ BUILD_DIRS = {
         'cvd_figures',
     ]
 }
-# Path to ``datasets`` folder
+# Path to ``datasets/`` folder
 DATASETS_DIR = WORKING_DIR.joinpath('datasets')
+# Path to ``config/`` folder
 CONFIG_DIR = WORKING_DIR.joinpath('config')
-LIFTING_FUNCTIONS_DIR = CONFIG_DIR.joinpath('lifting_functions')
-REGRESSOR_DIR = CONFIG_DIR.joinpath('regressor')
-EXPERIMENT = WORKING_DIR.joinpath('run_experiment.py')
-
-CVD_TARGET_REGEX = f'{BUILD_DIRS["cvd_figures"].resolve()}/.*\.png'
+# Dict of subfolders in ``config/``
+CONFIG_DIRS = {
+    dir: CONFIG_DIR.joinpath(dir)
+    for dir in [
+        'lifting_functions',
+        'regressor',
+    ]
+}
+# Path to ``run_experiment.py`` script
+EXPERIMENT_PY = WORKING_DIR.joinpath('run_experiment.py')
+# Name of data pickle within ``build/hydra_outputs/*/`` directories
 HYDRA_PICKLE = 'run_experiment.pickle'
 
-# SVD cutoff
+# SVD cutoff for plotting
 TOL = 1e-12
 # H-infinity LaTeX
 HINF = r'$\mathcal{H}_\infty$'
@@ -55,7 +70,7 @@ OKABE_ITO = {
     'vermillion': (0.80, 0.40, 0.00),
     'reddish purple': (0.80, 0.60, 0.70),
 }
-# Color mapping plots
+# Color mapping for plots
 C = {
     # Soft robot EDMD methods
     'edmd': OKABE_ITO['orange'],
@@ -76,7 +91,7 @@ C = {
     # FASTER input
     'u': OKABE_ITO['bluish green'],
 }
-# Matplotlib settings
+# Global Matplotlib settings
 plt.rc('figure', dpi=100)
 if matplotlib.checkdep_usetex(True):  # Use LaTeX only if available
     plt.rc('text', usetex=True)
@@ -84,6 +99,11 @@ if matplotlib.checkdep_usetex(True):  # Use LaTeX only if available
 plt.rc('lines', linewidth=2)
 plt.rc('axes', grid=True)
 plt.rc('grid', linestyle='--')
+
+
+# --------------------------------------------------------------------------- #
+# Task definitions
+# --------------------------------------------------------------------------- #
 
 
 def task_directory() -> Dict[str, Any]:
@@ -148,8 +168,8 @@ def task_experiment() -> Dict[str, Any]:
         for ds in DATASETS_DIR.glob('*')
     ]
     # Find all options for lifting functions and regressors by looking at yamls
-    lifting_functions = LIFTING_FUNCTIONS_DIR.glob('*.yaml')
-    regressors = REGRESSOR_DIR.glob('*.yaml')
+    lifting_functions = CONFIG_DIRS['lifting_functions'].glob('*.yaml')
+    regressors = CONFIG_DIRS['regressor'].glob('*.yaml')
     # Compute every possible combination of dataset, lifting fn, and regressor
     experiments = itertools.product(datasets, lifting_functions, regressors)
     for (dataset, lifting_function, regressor) in experiments:
@@ -161,7 +181,7 @@ def task_experiment() -> Dict[str, Any]:
             'name':
             exp_name,
             'actions': [
-                f'python {EXPERIMENT} hydra.run.dir={exp_dir} '
+                f'python {EXPERIMENT_PY} hydra.run.dir={exp_dir} '
                 f'dataset={dataset} lifting_functions={lifting_function.stem} '
                 f'regressor={regressor.stem}'
             ],
@@ -179,13 +199,13 @@ def task_experiment() -> Dict[str, Any]:
 def task_profile() -> Dict[str, Any]:
     """Profile an experiment with Memory Profiler."""
     dataset = BUILD_DIRS['datasets'].joinpath('soft_robot.pickle')
-    lifting_function = LIFTING_FUNCTIONS_DIR.joinpath(
+    lifting_function = CONFIG_DIRS['lifting_functions'].joinpath(
         'polynomial3_delay1.yaml')
     regressors = [
-        REGRESSOR_DIR.joinpath('srconst_0999.yaml'),
-        REGRESSOR_DIR.joinpath('srconst_0999_dmdc.yaml'),
-        REGRESSOR_DIR.joinpath('hinf.yaml'),
-        REGRESSOR_DIR.joinpath('hinf_dmdc.yaml'),
+        CONFIG_DIRS['regressor'].joinpath('srconst_0999.yaml'),
+        CONFIG_DIRS['regressor'].joinpath('srconst_0999_dmdc.yaml'),
+        CONFIG_DIRS['regressor'].joinpath('hinf.yaml'),
+        CONFIG_DIRS['regressor'].joinpath('hinf_dmdc.yaml'),
     ]
     for regressor in regressors:
         exp_name = f'{dataset.stem}__{lifting_function.stem}__{regressor.stem}__max_iter_1'
@@ -197,7 +217,7 @@ def task_profile() -> Dict[str, Any]:
             regressor.stem,
             'actions': [
                 f'mprof run --include-children --output {prof_dir} '
-                f'--python {WORKING_DIR}/run_experiment.py '
+                f'--python {EXPERIMENT_PY} '
                 f'dataset={dataset} lifting_functions={lifting_function.stem} '
                 f'regressor={regressor.stem} regressor.regressor.max_iter=1 '
                 f'profile=True hydra.run.dir={exp_dir}'
@@ -336,7 +356,10 @@ def task_plot() -> Dict[str, Any]:
         }
 
 
-@doit.create_after(executed='plot', target_regex=CVD_TARGET_REGEX)
+@doit.create_after(
+    executed='plot',
+    target_regex=f'{BUILD_DIRS["cvd_figures"].resolve()}/.*\.png',
+)
 def task_cvd() -> Dict[str, Any]:
     """Simulate color vision deficiency a plot."""
     plots = BUILD_DIRS['figures'].glob('*.png')
@@ -344,21 +367,23 @@ def task_cvd() -> Dict[str, Any]:
     tasks = itertools.product(plots, methods)
     for (plot, method) in tasks:
         file_dep = BUILD_DIRS['figures'].joinpath(plot)
-        target = BUILD_DIRS['cvd_figures'].joinpath(f'{plot.stem}_{method}.png')
+        target = BUILD_DIRS['cvd_figures'].joinpath(
+            f'{plot.stem}_{method}.png')
         yield {
             'name': f'{plot.stem}_{method}',
             'actions': [f'daltonlens-python -d {method} {file_dep} {target}'],
-            'file_dep': [
-                file_dep
-            ],
+            'file_dep': [file_dep],
             'task_dep': [
                 'directory:build/cvd_figures',
             ],
-            'targets': [
-                target
-            ],
+            'targets': [target],
             'clean': True,
         }
+
+
+# --------------------------------------------------------------------------- #
+# Task actions
+# --------------------------------------------------------------------------- #
 
 
 def pickle_faster_dataset(dependencies: List[pathlib.Path],
@@ -504,9 +529,6 @@ def faster_error(dependencies: List[pathlib.Path],
         label='Ground truth',
     )
 
-    # ax[0].set_ylabel(r'$\Delta x_1(t)$ (N, norm.)')
-    # ax[1].set_ylabel(r'$\Delta x_2(t)$ (m, norm.)')
-    # ax[2].set_ylabel(r'$u(t)$ (V, norm.)')
     ax[0].set_ylabel(r'$\Delta x_1(t)$ (force)')
     ax[1].set_ylabel(r'$\Delta x_2(t)$ (deflection)')
     ax[2].set_ylabel(r'$u(t)$ (voltage)')
@@ -1366,6 +1388,11 @@ def soft_robot_exec(dependencies: List[pathlib.Path],
     # Save plots
     for target in targets:
         fig.savefig(target, bbox_inches='tight', pad_inches=0.1)
+
+
+# --------------------------------------------------------------------------- #
+# Helpers
+# --------------------------------------------------------------------------- #
 
 
 def _calc_rmse(loaded_pickle):
