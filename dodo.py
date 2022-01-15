@@ -37,6 +37,7 @@ LIFTING_FUNCTIONS_DIR = CONFIG_DIR.joinpath('lifting_functions')
 REGRESSOR_DIR = CONFIG_DIR.joinpath('regressor')
 EXPERIMENT = WORKING_DIR.joinpath('run_experiment.py')
 
+CVD_TARGET_REGEX = f'{BUILD_DIRS["cvd_figures"].resolve()}/.*\.png'
 HYDRA_PICKLE = 'run_experiment.pickle'
 
 # SVD cutoff
@@ -77,7 +78,7 @@ C = {
 }
 # Matplotlib settings
 plt.rc('figure', dpi=100)
-if matplotlib.checkdep_usetex(True):
+if matplotlib.checkdep_usetex(True):  # Use LaTeX only if available
     plt.rc('text', usetex=True)
     plt.rc('font', family='serif', size=12)
 plt.rc('lines', linewidth=2)
@@ -232,11 +233,10 @@ def task_plot() -> Dict[str, Any]:
             ],
             'task_dep': [
                 'directory:build/figures',
-                'directory:build/cvd_figures',
             ],
             'targets': [
                 BUILD_DIRS['figures'].joinpath(f'{action.__name__}.pdf'),
-                BUILD_DIRS['cvd_figures'].joinpath(f'{action.__name__}.png'),
+                BUILD_DIRS['figures'].joinpath(f'{action.__name__}.png'),
             ],
             'clean':
             True,
@@ -269,11 +269,10 @@ def task_plot() -> Dict[str, Any]:
             ],
             'task_dep': [
                 'directory:build/figures',
-                'directory:build/cvd_figures',
             ],
             'targets': [
                 BUILD_DIRS['figures'].joinpath(f'{action.__name__}.pdf'),
-                BUILD_DIRS['cvd_figures'].joinpath(f'{action.__name__}.png'),
+                BUILD_DIRS['figures'].joinpath(f'{action.__name__}.png'),
             ],
             'clean':
             True,
@@ -303,11 +302,10 @@ def task_plot() -> Dict[str, Any]:
             ],
             'task_dep': [
                 'directory:build/figures',
-                'directory:build/cvd_figures',
             ],
             'targets': [
                 BUILD_DIRS['figures'].joinpath(f'{action.__name__}.pdf'),
-                BUILD_DIRS['cvd_figures'].joinpath(f'{action.__name__}.png'),
+                BUILD_DIRS['figures'].joinpath(f'{action.__name__}.png'),
             ],
             'clean':
             True,
@@ -328,14 +326,38 @@ def task_plot() -> Dict[str, Any]:
             ],
             'task_dep': [
                 'directory:build/figures',
-                'directory:build/cvd_figures',
             ],
             'targets': [
                 BUILD_DIRS['figures'].joinpath(f'{action.__name__}.pdf'),
-                BUILD_DIRS['cvd_figures'].joinpath(f'{action.__name__}.png'),
+                BUILD_DIRS['figures'].joinpath(f'{action.__name__}.png'),
             ],
             'clean':
             True,
+        }
+
+
+@doit.create_after(executed='plot', target_regex=CVD_TARGET_REGEX)
+def task_cvd() -> Dict[str, Any]:
+    """Simulate color vision deficiency a plot."""
+    plots = BUILD_DIRS['figures'].glob('*.png')
+    methods = ['protan', 'deutan', 'tritan']
+    tasks = itertools.product(plots, methods)
+    for (plot, method) in tasks:
+        file_dep = BUILD_DIRS['figures'].joinpath(plot)
+        target = BUILD_DIRS['cvd_figures'].joinpath(f'{plot.stem}_{method}.png')
+        yield {
+            'name': f'{plot.stem}_{method}',
+            'actions': [f'daltonlens-python -d {method} {file_dep} {target}'],
+            'file_dep': [
+                file_dep
+            ],
+            'task_dep': [
+                'directory:build/cvd_figures',
+            ],
+            'targets': [
+                target
+            ],
+            'clean': True,
         }
 
 
