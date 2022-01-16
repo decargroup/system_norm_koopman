@@ -112,10 +112,7 @@ def main(config: omegaconf.DictConfig) -> None:
         episode_feature=dataset['episode_feature'],
     )
     for (i, X_i) in episodes:
-        X_validation_i = np.hstack((
-            i * np.ones((X_i.shape[0], 1)),
-            X_i,
-        ))
+        X_validation_i = np.hstack((i * np.ones((X_i.shape[0], 1)), X_i))
         #######################################################################
         X_prediction = kp.predict_multistep(X_validation_i)
         try:
@@ -133,8 +130,8 @@ def main(config: omegaconf.DictConfig) -> None:
         fig = plot_timeseries(X_validation_i, X_prediction, score)
         fig.savefig(wd.joinpath(f'{key}.png'))
         #######################################################################
-        key = f'error{i}'
-        fig = plot_timeseries(X_validation_i, X_prediction, score)
+        key = f'error_{i}'
+        fig = plot_error(X_validation_i, X_prediction, score)
         fig.savefig(wd.joinpath(f'{key}.png'))
         #######################################################################
     # Plot other interesting estimator propreties
@@ -165,11 +162,11 @@ def main(config: omegaconf.DictConfig) -> None:
     A = U[:, :U.shape[0]]
     B = U[:, U.shape[0]:]
     C = np.eye(U.shape[0])
-    f_samp = 1 / t_step
+    f_samp = 1 / dataset['t_step']
     f_plot = np.linspace(0, f_samp / 2, 1000)
     bode = []
     for f in f_plot:
-        bode.append(sigma_bar_G(f))
+        bode.append(sigma_bar_G(f, dataset['t_step'], A, B, C))
     mag = np.array(bode)
     mag_db = 20 * np.log10(mag)
     key = 'bode'
@@ -189,7 +186,7 @@ def main(config: omegaconf.DictConfig) -> None:
     else:
         obj_log = None
     if obj_log is not None:
-        key ='convergence'
+        key = 'convergence'
         res[key] = {
             'obj': obj_log,
         }
@@ -266,7 +263,7 @@ def split_training_validation(
     return (X_training, X_validation)
 
 
-def sigma_bar_G(f):
+def sigma_bar_G(f, t_step, A, B, C):
     """Maximum singular value of transfer matrix at a frequency."""
     z = np.exp(1j * 2 * np.pi * f * t_step)
     G = C @ linalg.solve((np.diag([z] * A.shape[0]) - A), B)
@@ -280,6 +277,7 @@ def sigma_bar_G(f):
 
 # TODO Type annotations
 
+
 def plot_timeseries(X_validation, X_prediction, score):
     # Compute state and input dimensions
     n_state = X_prediction.shape[1] - 1
@@ -287,7 +285,6 @@ def plot_timeseries(X_validation, X_prediction, score):
     # Ditch episode feature
     X_pred = X_prediction[:, 1:]
     X_vald = X_validation[:, 1:]
-    #
     fig, ax = plt.subplots(n_state + n_input, 1, constrained_layout=True)
     for i in range(n_state + n_input):
         ax[i].grid(True, linestyle='--')
@@ -299,9 +296,9 @@ def plot_timeseries(X_validation, X_prediction, score):
         else:
             ax[i].plot(X_vald[:, i])
             ax[i].set_ylabel(rf'$u_{i - n_state}[k]$')
-        ax[0].set_title(lab + f' MSE: {-1 * score}')
+        ax[0].set_title(f' MSE: {-1 * score}')
         ax[0].legend(loc='lower right')
-        return fig
+    return fig
 
 
 def plot_error(X_validation, X_prediction, score):
@@ -311,7 +308,6 @@ def plot_error(X_validation, X_prediction, score):
     # Ditch episode feature
     X_pred = X_prediction[:, 1:]
     X_vald = X_validation[:, 1:]
-    #
     fig, ax = plt.subplots(n_state + n_input, 1, constrained_layout=True)
     for i in range(n_state + n_input):
         ax[i].grid(True, linestyle='--')
@@ -322,9 +318,9 @@ def plot_error(X_validation, X_prediction, score):
         else:
             ax[i].plot(X_vald[:, i])
             ax[i].set_ylabel(rf'$u_{i - n_state}[k]$')
-        ax[0].set_title(lab + f' MSE: {-1 * score}')
+        ax[0].set_title(f' MSE: {-1 * score}')
         ax[0].legend(loc='lower right')
-        return fig
+    return fig
 
 
 def plot_weights(w_dt, mag_dt, mag_dt_db):
@@ -351,22 +347,22 @@ def plot_weights(w_dt, mag_dt, mag_dt_db):
 def plot_eigenvalues(eigv, eigv_mag):
     fig = plt.figure(constrained_layout=True)
     gs = fig.add_gridspec(2, 1)
-    ax = np.empty((2, 1), dtype=object)
+    ax = np.empty((2, ), dtype=object)
     # Add polar plot
-    ax[0] = fig.add_subplot(gs[0], projection='polar')
+    ax[0] = fig.add_subplot(gs[0, 0], projection='polar')
     ax[0].set_xlabel(r'$\mathrm{Re}(\lambda)$')
     ax[0].set_ylabel(r'$\mathrm{Im}(\lambda)$', labelpad=30)
     ax[0].set_rmax(10)
     ax[0].grid(True, linestyle='--')
     # Add magnitude plot
-    ax[1] = fig.add_subplot(gs[1])
+    ax[1] = fig.add_subplot(gs[1, 0])
     ax[1].set_xlabel(r'$i$')
     ax[1].set_ylabel(r'$\|\lambda_i\|$')
     ax[1].grid(True, linestyle='--')
     # Plot polar plot
     th = np.linspace(0, 2 * np.pi)
     ax[0].plot(th, np.ones(th.shape), '--k')
-    ax[0].scatter(np.angle(eigv_sort), np.absolute(eigv_sort), marker='x')
+    ax[0].scatter(np.angle(eigv), np.absolute(eigv), marker='x')
     # Plot magnitude plot
     ax[1].plot(eigv_mag, marker='x')
     return fig
@@ -391,7 +387,6 @@ def plot_mimo_bode(f_plot, mag, mag_db):
     ax.set_xlabel('Frequency (Hz)')
     ax.set_ylabel('Maximum singular value of G[z]', color='C0')
     ax.tick_params(axis='y', labelcolor='C0')
-    ax.set_title(label)
     ax2 = ax.twinx()
     ax2.plot(f_plot, mag_db, color='C1')
     ax2.set_ylabel('Maximum singular value of G[z] (dB)', color='C1')
