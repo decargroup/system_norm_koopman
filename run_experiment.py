@@ -7,22 +7,16 @@ import pathlib
 import pickle
 import subprocess
 import time
-from typing import Any, Callable, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, Optional, Tuple
 
 import hydra
 import numpy as np
 import omegaconf
-import pandas
 import pykoop
 import pykoop.lmi_regressors
-import sklearn.model_selection
 import sklearn.preprocessing
-import skopt
-import skopt.callbacks
-import skopt.plots
 from matplotlib import pyplot as plt
 from scipy import linalg, signal
-from sklearn.experimental import enable_halving_search_cv
 # TODO CHECK UNUSED
 
 
