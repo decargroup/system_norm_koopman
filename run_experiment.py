@@ -18,7 +18,6 @@ import sklearn.preprocessing
 from matplotlib import pyplot as plt
 from scipy import linalg, signal
 
-
 # --------------------------------------------------------------------------- #
 # Main job
 # --------------------------------------------------------------------------- #
@@ -94,7 +93,8 @@ def main(config: omegaconf.DictConfig) -> None:
         mag_dt = np.abs(H_dt)
         mag_dt_db = 20 * np.log10(mag_dt)
         # Save weight results
-        res['weights'] = {
+        key = 'weights'
+        res[key] = {
             'w_ct': w_ct,
             'H_ct': H_ct,
             'mag_ct': mag_ct,
@@ -105,22 +105,97 @@ def main(config: omegaconf.DictConfig) -> None:
         }
         # Plot weight results
         fig = plot_weights(w_dt, mag_dt, mag_dt_db)
-        fig.savefig(wd.joinpath('weights.png'))
+        fig.savefig(wd.joinpath(f'{key}.png'))
     # Plot validation set prediction and errors
     episodes = pykoop.split_episodes(
-        X_validation, episode_feature=dataset['episode_feature'])
+        X_validation,
+        episode_feature=dataset['episode_feature'],
+    )
     for (i, X_i) in episodes:
-        X_i_with_ep = np.hstack((
+        X_validation_i = np.hstack((
             i * np.ones((X_i.shape[0], 1)),
             X_i,
         ))
-        plot_timeseries(f'timeseries_{i}', wd, res, X_i_with_ep, [kp])
-        plot_error(f'error_{i}', wd, res, X_i_with_ep, [kp])
+        #######################################################################
+        X_prediction = kp.predict_multistep(X_validation_i)
+        try:
+            scorer = pykoop.KoopmanPipeline.make_scorer()
+            score = scorer(kp, X_validation_i)
+        except Exception as e:
+            logging.warning(e)
+            score = np.nan
+        # Save results
+        key = f'timeseries_{i}'
+        res[key] = {
+            'X_prediction': X_prediction,
+            'X_validation': X_validation_i,
+        }
+        fig = plot_timeseries(X_validation_i, X_prediction, score)
+        fig.savefig(wd.joinpath(f'{key}.png'))
+        #######################################################################
+        key = f'error{i}'
+        fig = plot_timeseries(X_validation_i, X_prediction, score)
+        fig.savefig(wd.joinpath(f'{key}.png'))
+        #######################################################################
     # Plot other interesting estimator propreties
-    plot_eigenvalues('eigenvalues', wd, res, [kp])
-    plot_matshow('matshow', wd, res, kp)
-    plot_mimo_bode('bode', wd, res, kp, dataset['t_step'])
-    plot_convergence('convergence', wd, res, kp)
+    ###########################################################################
+    U = kp.regressor_.coef_.T
+    A = U[:, :U.shape[0]]
+    eigv = linalg.eig(A)[0]
+    eigv_mag = np.absolute(eigv)
+    idx = eigv_mag.argsort()[::-1]
+    eigv_mag_sorted = eigv_mag[idx]
+    key = 'eigenvalues'
+    res[key] = {
+        'eigv': eigv,
+        'eigv_mag': eigv_mag_sorted,
+    }
+    fig = plot_eigenvalues(eigv, eigv_mag_sorted)
+    fig.savefig(wd.joinpath(f'{key}.png'))
+    ###########################################################################
+    U = kp.regressor_.coef_.T
+    key = 'matshow'
+    res[key] = {
+        'U': U,
+    }
+    fig = plot_matshow(U)
+    fig.savefig(wd.joinpath(f'{key}.png'))
+    ###########################################################################
+    U = kp.regressor_.coef_.T
+    A = U[:, :U.shape[0]]
+    B = U[:, U.shape[0]:]
+    C = np.eye(U.shape[0])
+    f_samp = 1 / t_step
+    f_plot = np.linspace(0, f_samp / 2, 1000)
+    bode = []
+    for f in f_plot:
+        bode.append(sigma_bar_G(f))
+    mag = np.array(bode)
+    mag_db = 20 * np.log10(mag)
+    key = 'bode'
+    res[key] = {
+        'f_samp': f_samp,
+        'f_plot': f_plot,
+        'mag': mag,
+        'mag_db': mag_db,
+    }
+    fig = plot_mimo_bode(f_plot, mag, mag_db)
+    fig.savefig(wd.joinpath(f'{key}.png'))
+    ###########################################################################
+    if hasattr(kp.regressor_, 'objective_log_'):
+        obj_log = np.array(kp.regressor_.objective_log_)
+    elif hasattr(kp.regressor_, 'hinf_regressor_'):
+        obj_log = np.array(kp.regressor_.hinf_regressor_.objective_log_)
+    else:
+        obj_log = None
+    if obj_log is not None:
+        key ='convergence'
+        res[key] = {
+            'obj': obj_log,
+        }
+        fig = plot_convergence(obj_log)
+        fig.savefig(wd.joinpath(f'{key}.png'))
+    ###########################################################################
     # Save pickle of results
     with open(wd.joinpath('run_experiment.pickle'), 'wb') as f:
         pickle.dump(res, f)
@@ -145,6 +220,8 @@ def main(config: omegaconf.DictConfig) -> None:
 # --------------------------------------------------------------------------- #
 # Helper functions
 # --------------------------------------------------------------------------- #
+
+# TODO Type annotations
 
 
 def calc_n_steps(dataset: Dict) -> Tuple[int, int]:
@@ -189,102 +266,65 @@ def split_training_validation(
     return (X_training, X_validation)
 
 
+def sigma_bar_G(f):
+    """Maximum singular value of transfer matrix at a frequency."""
+    z = np.exp(1j * 2 * np.pi * f * t_step)
+    G = C @ linalg.solve((np.diag([z] * A.shape[0]) - A), B)
+    sigma_bar_G = linalg.svdvals(G)[0]
+    return sigma_bar_G
+
+
 # --------------------------------------------------------------------------- #
 # Plotting functions
 # --------------------------------------------------------------------------- #
 
+# TODO Type annotations
 
-def plot_timeseries(path, wd, res, X_validation, estimators, labels=None):
-    """Plot timeseries of states."""
-    # Create figure
-    fig = plt.figure(constrained_layout=True)
-    # Fill in labels if missing
-    if labels is None:
-        labels = []
-        for est in estimators:
-            labels.append(type(est.regressor_).__name__)
-    # Create gridspec
-    n_state = estimators[0].n_states_in_
-    n_input = estimators[0].n_inputs_in_
-    n_method = len(estimators)
-    # Create grid and add labels
-    gs = fig.add_gridspec(n_state + n_input, n_method)
-    ax = np.empty((n_state + n_input, n_method), dtype=object)
+def plot_timeseries(X_validation, X_prediction, score):
+    # Compute state and input dimensions
+    n_state = X_prediction.shape[1] - 1
+    n_input = X_validation.shape[1] - n_state - 1
+    # Ditch episode feature
+    X_pred = X_prediction[:, 1:]
+    X_vald = X_validation[:, 1:]
+    #
+    fig, ax = plt.subplots(n_state + n_input, 1, constrained_layout=True)
     for i in range(n_state + n_input):
-        for j in range(n_method):
-            ax[i, j] = fig.add_subplot(gs[i, j])
-            ax[i, j].grid(True, linestyle='--')
-            ax[i, j].set_xlabel(r'$k$')
-            if i < n_state:
-                ax[i, j].set_ylabel(rf'$x_{i}[k]$')
-            else:
-                ax[i, j].set_ylabel(rf'$u_{i - n_state}[k]$')
-    # Iterate over estimators
-    for (j, est, lab) in zip(range(n_method), estimators, labels):
-        try:
-            X_prediction = est.predict_multistep(X_validation)
-            scorer = pykoop.KoopmanPipeline.make_scorer()
-            score = scorer(est, X_validation)
-        except Exception as e:
-            logging.warning(e)
-            score = np.nan
-        # Save results
-        res[path] = {
-            'X_prediction': X_prediction,
-            'X_validation': X_validation,
-        }
-        X_prediction = X_prediction[:, 1:]
-        X_validation = X_validation[:, 1:]
-        for i in range(n_state + n_input):
-            if i < n_state:
-                ax[i, j].plot(X_validation[:, i], label='True state')
-                ax[i, j].plot(X_prediction[:, i], label='Predicted state')
-            else:
-                ax[i, j].plot(X_validation[:, i])
-            ax[0, j].set_title(lab + f' MSE: {-1 * score}')
-            ax[0, j].legend(loc='lower right')
-    # Save figure
-    fig.savefig(wd.joinpath(f'{path}.png'))
+        ax[i].grid(True, linestyle='--')
+        ax[i].set_xlabel(r'$k$')
+        if i < n_state:
+            ax[i].plot(X_vald[:, i], label='True state')
+            ax[i].plot(X_pred[:, i], label='Predicted state')
+            ax[i].set_ylabel(rf'$x_{i}[k]$')
+        else:
+            ax[i].plot(X_vald[:, i])
+            ax[i].set_ylabel(rf'$u_{i - n_state}[k]$')
+        ax[0].set_title(lab + f' MSE: {-1 * score}')
+        ax[0].legend(loc='lower right')
+        return fig
 
 
-def plot_error(path, wd, res, X_validation, estimators, labels=None):
-    """Plot timeseries of error."""
-    # Create figure
-    fig = plt.figure(constrained_layout=True)
-    # Fill in labels if missing
-    if labels is None:
-        labels = []
-        for est in estimators:
-            labels.append(type(est.regressor_).__name__)
-
-    # Create gridspec
-    n_state = estimators[0].n_states_in_
-    n_method = len(estimators)
-    gs = fig.add_gridspec(n_state, n_method)
-    ax = np.empty((n_state, n_method), dtype=object)
-    for i in range(n_state):
-        for j in range(n_method):
-            ax[i, j] = fig.add_subplot(gs[i, j])
-            ax[i, j].grid(True, linestyle='--')
-            ax[i, j].set_xlabel(r'$k$')
-            ax[i, j].set_ylabel(rf'$e_{i}[k]$')
-
-    # Predict and plot
-    for (j, est, lab) in zip(range(n_method), estimators, labels):
-        try:
-            X_prediction = est.predict_multistep(X_validation)
-            scorer = pykoop.KoopmanPipeline.make_scorer()
-            score = scorer(est, X_validation)
-        except Exception as e:
-            logging.warning(e)
-            score = np.nan
-        X_prediction = X_prediction[:, 1:]
-        X_validation = X_validation[:, 1:]
-        for i in range(n_state):
-            ax[0, j].set_title(lab + f' MSE: {-1 * score}')
-            ax[i, j].plot(X_validation[:, i] - X_prediction[:, i])
-    # Save figure
-    fig.savefig(wd.joinpath(f'{path}.png'))
+def plot_error(X_validation, X_prediction, score):
+    # Compute state and input dimensions
+    n_state = X_prediction.shape[1] - 1
+    n_input = X_validation.shape[1] - n_state - 1
+    # Ditch episode feature
+    X_pred = X_prediction[:, 1:]
+    X_vald = X_validation[:, 1:]
+    #
+    fig, ax = plt.subplots(n_state + n_input, 1, constrained_layout=True)
+    for i in range(n_state + n_input):
+        ax[i].grid(True, linestyle='--')
+        ax[i].set_xlabel(r'$k$')
+        if i < n_state:
+            ax[i].plot(X_vald[:, i] - X_pred[:, i], label='Prediction error')
+            ax[i].set_ylabel(rf'$\Delta x_{i}[k]$')
+        else:
+            ax[i].plot(X_vald[:, i])
+            ax[i].set_ylabel(rf'$u_{i - n_state}[k]$')
+        ax[0].set_title(lab + f' MSE: {-1 * score}')
+        ax[0].legend(loc='lower right')
+        return fig
 
 
 def plot_weights(w_dt, mag_dt, mag_dt_db):
@@ -308,122 +348,43 @@ def plot_weights(w_dt, mag_dt, mag_dt_db):
     return fig
 
 
-def plot_eigenvalues(path, wd, res, estimators, labels=None):
-    """Plot eigendecomposition."""
-    # Create figure
+def plot_eigenvalues(eigv, eigv_mag):
     fig = plt.figure(constrained_layout=True)
-
-    def plt_uc(ax):
-        th = np.linspace(0, 2 * np.pi)
-        ax.plot(th, np.ones(th.shape), '--k')
-
-    def plt_eig(A, ax, label='', marker='x'):
-        """Eigenvalue plotting helper function."""
-        eigv = linalg.eig(A)[0]
-        eigv_mag = np.abs(eigv)
-        idx = eigv_mag.argsort()[::-1]
-        eigv_sort = eigv[idx]
-        ax.scatter(np.angle(eigv_sort),
-                   np.absolute(eigv_sort),
-                   marker=marker,
-                   label=label,
-                   cmap='viridis')
-
-    def plt_eig_mag(A, ax, label='', marker='x'):
-        """Eigenvalue plotting helper function."""
-        eigv = linalg.eig(A)[0]
-        eigv_mag = np.absolute(eigv)
-        idx = eigv_mag.argsort()[::-1]
-        ax.plot(eigv_mag[idx], marker=marker, label=label)
-        res[path] = {
-            'eigv': eigv,
-            'eigv_mat': eigv_mag[idx],
-        }
-
-    # Fill in labels if missing
-    if labels is None:
-        labels = []
-        for est in estimators:
-            labels.append(type(est.regressor_).__name__)
-
-    # Create gridspec
-    n_plt = len(estimators)
-    gs = fig.add_gridspec(2, n_plt)
-    ax = np.empty((2, n_plt), dtype=object)
-    for i in range(n_plt):
-        ax[0, i] = fig.add_subplot(gs[0, i], projection='polar')
-        ax[0, i].set_xlabel(r'$\mathrm{Re}(\lambda)$')
-        ax[0, i].set_ylabel(r'$\mathrm{Im}(\lambda)$', labelpad=30)
-        ax[0, i].set_rmax(10)
-        ax[0, i].grid(True, linestyle='--')
-    for i in range(n_plt):
-        ax[1, i] = fig.add_subplot(gs[1, i])
-        ax[1, i].set_xlabel(r'$i$')
-        ax[1, i].set_ylabel(r'$\|\lambda_i\|$')
-        ax[1, i].grid(True, linestyle='--')
-
-    # Plot contents
-    for (i, est, lab) in zip(range(n_plt), estimators, labels):
-        U = est.regressor_.coef_.T
-        A = U[:, :U.shape[0]]
-        ax[0, i].set_title(lab)
-        plt_uc(ax[0, i])
-        plt_eig(A, ax[0, i], label=lab)
-        plt_eig_mag(A, ax[1, i], label=lab)
-    # Save figure
-    fig.savefig(wd.joinpath(f'{path}.png'))
+    gs = fig.add_gridspec(2, 1)
+    ax = np.empty((2, 1), dtype=object)
+    # Add polar plot
+    ax[0] = fig.add_subplot(gs[0], projection='polar')
+    ax[0].set_xlabel(r'$\mathrm{Re}(\lambda)$')
+    ax[0].set_ylabel(r'$\mathrm{Im}(\lambda)$', labelpad=30)
+    ax[0].set_rmax(10)
+    ax[0].grid(True, linestyle='--')
+    # Add magnitude plot
+    ax[1] = fig.add_subplot(gs[1])
+    ax[1].set_xlabel(r'$i$')
+    ax[1].set_ylabel(r'$\|\lambda_i\|$')
+    ax[1].grid(True, linestyle='--')
+    # Plot polar plot
+    th = np.linspace(0, 2 * np.pi)
+    ax[0].plot(th, np.ones(th.shape), '--k')
+    ax[0].scatter(np.angle(eigv_sort), np.absolute(eigv_sort), marker='x')
+    # Plot magnitude plot
+    ax[1].plot(eigv_mag, marker='x')
+    return fig
 
 
-def plot_matshow(path, wd, res, estimator, label=None):
-    """Plot matrix in an image."""
-    # Fill in labels if missing
-    if label is None:
-        label = type(estimator.regressor_).__name__
-    # Get Koopman matrix
-    U = estimator.regressor_.coef_.T
+def plot_matshow(U):
     p_theta, p = U.shape
     # Plot Koopman matrix and dividing line between ``A`` and ``B``.
     fig, ax = plt.subplots(constrained_layout=True)
     mag = np.max(np.abs(U))
     im = ax.matshow(U, vmin=-mag, vmax=mag, cmap='seismic')
     ax.vlines(p_theta - 0.5, -0.5, p_theta - 0.5, color='green')
-    ax.set_title(label)
     fig.colorbar(im, ax=ax)
-    # Save figure
-    res[path] = {
-        'U': U,
-    }
-    fig.savefig(wd.joinpath(f'{path}.png'))
+    return fig
 
 
-def plot_mimo_bode(path, wd, res, estimator, t_step, label=None):
+def plot_mimo_bode(f_plot, mag, mag_db):
     """Plot MIMO Bode plot."""
-    # Fill in labels if missing
-    if label is None:
-        label = type(estimator.regressor_).__name__
-    # Get Koopman matrix
-    U = estimator.regressor_.coef_.T
-    # Get ``A``, ``B``, and ``C``.
-    A = U[:, :U.shape[0]]
-    B = U[:, U.shape[0]:]
-    C = np.eye(U.shape[0])
-
-    def sigma_bar_G(f):
-        """Maximum singular value of transfer matrix at a frequency."""
-        z = np.exp(1j * 2 * np.pi * f * t_step)
-        G = C @ linalg.solve((np.diag([z] * A.shape[0]) - A), B)
-        sigma_bar_G = linalg.svdvals(G)[0]
-        return sigma_bar_G
-
-    # Compute magnitudes
-    f_samp = 1 / t_step
-    f_plot = np.linspace(0, f_samp / 2, 1000)
-    bode = []
-    for f in f_plot:
-        bode.append(sigma_bar_G(f))
-    mag = np.array(bode)
-    mag_db = 20 * np.log10(mag)
-    # Construct Bode plot
     fig, ax = plt.subplots(constrained_layout=True)
     ax.grid(True, linestyle='--')
     ax.plot(f_plot, mag, color='C0')
@@ -435,42 +396,16 @@ def plot_mimo_bode(path, wd, res, estimator, t_step, label=None):
     ax2.plot(f_plot, mag_db, color='C1')
     ax2.set_ylabel('Maximum singular value of G[z] (dB)', color='C1')
     ax2.tick_params(axis='y', labelcolor='C1')
-    # Save figure
-    res[path] = {
-        'f_samp': f_samp,
-        'f_plot': f_plot,
-        'mag': mag,
-        'mag_db': mag_db,
-    }
-    fig.savefig(wd.joinpath(f'{path}.png'))
+    return fig
 
 
-def plot_convergence(path, wd, res, estimator, label=None):
-    """Plot convergence if applicable."""
-    # Check for objective log
-    obj_log = None
-    if hasattr(estimator.regressor_, 'objective_log_'):
-        obj_log = estimator.regressor_.objective_log_
-    elif hasattr(estimator.regressor_, 'hinf_regressor_'):
-        obj_log = estimator.regressor_.hinf_regressor_.objective_log_
-    # Plot objective log
-    if obj_log is not None:
-        # Fill in labels if missing
-        if label is None:
-            label = type(estimator.regressor_).__name__
-        # Get objective
-        obj = np.array(obj_log)
-        # Plot objective
-        fig, ax = plt.subplots(constrained_layout=True)
-        ax.grid(True, linestyle='--')
-        ax.plot(obj)
-        ax.set_xlabel('Iteration')
-        ax.set_ylabel('Objective function value')
-        # Save figure
-        res[path] = {
-            'obj': obj,
-        }
-        fig.savefig(wd.joinpath(f'{path}.png'))
+def plot_convergence(obj_log):
+    fig, ax = plt.subplots(constrained_layout=True)
+    ax.grid(True, linestyle='--')
+    ax.plot(obj_log)
+    ax.set_xlabel('Iteration')
+    ax.set_ylabel('Objective function value')
+    return fig
 
 
 if __name__ == '__main__':
