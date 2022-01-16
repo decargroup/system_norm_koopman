@@ -19,6 +19,11 @@ from matplotlib import pyplot as plt
 from scipy import linalg, signal
 
 
+# --------------------------------------------------------------------------- #
+# Main job
+# --------------------------------------------------------------------------- #
+
+
 @hydra.main(config_path='config', config_name='config')
 def main(config: omegaconf.DictConfig) -> None:
     """Run a Koopman experiment.
@@ -81,13 +86,26 @@ def main(config: omegaconf.DictConfig) -> None:
         pickle.dump(kp, f)
     # Plot weights if present
     if (hasattr(kp.regressor_, 'ss_ct_') and hasattr(kp.regressor_, 'ss_dt_')):
-        plot_weights(
-            'weights',
-            wd,
-            res,
-            kp.regressor_.ss_ct_,
-            kp.regressor_.ss_dt_,
-        )
+        # Continuous time
+        w_ct, H_ct = signal.freqresp(kp.regressor.ss_ct_)
+        mag_ct = 20 * np.log10(np.abs(H_ct))
+        # Discrete time
+        w_dt, H_dt = signal.dfreqresp(kp.regressor.ss_dt_)
+        mag_dt = np.abs(H_dt)
+        mag_dt_db = 20 * np.log10(mag_dt)
+        # Save weight results
+        res['weights'] = {
+            'w_ct': w_ct,
+            'H_ct': H_ct,
+            'mag_ct': mag_ct,
+            'w_dt': w_dt,
+            'H_dt': H_dt,
+            'mag_dt': mag_dt,
+            'mag_dt_db': mag_dt_db,
+        }
+        # Plot weight results
+        fig = plot_weights(w_dt, mag_dt, mag_dt_db)
+        fig.savefig(wd.joinpath('weights.png'))
     # Plot validation set prediction and errors
     episodes = pykoop.split_episodes(
         X_validation, episode_feature=dataset['episode_feature'])
@@ -122,6 +140,11 @@ def main(config: omegaconf.DictConfig) -> None:
         except Exception:
             logging.warning('To enable push notifications, install `ntfy` '
                             'from: https://github.com/dschep/ntfy')
+
+
+# --------------------------------------------------------------------------- #
+# Helper functions
+# --------------------------------------------------------------------------- #
 
 
 def calc_n_steps(dataset: Dict) -> Tuple[int, int]:
@@ -166,6 +189,11 @@ def split_training_validation(
     return (X_training, X_validation)
 
 
+# --------------------------------------------------------------------------- #
+# Plotting functions
+# --------------------------------------------------------------------------- #
+
+
 def plot_timeseries(path, wd, res, X_validation, estimators, labels=None):
     """Plot timeseries of states."""
     # Create figure
@@ -179,6 +207,7 @@ def plot_timeseries(path, wd, res, X_validation, estimators, labels=None):
     n_state = estimators[0].n_states_in_
     n_input = estimators[0].n_inputs_in_
     n_method = len(estimators)
+    # Create grid and add labels
     gs = fig.add_gridspec(n_state + n_input, n_method)
     ax = np.empty((n_state + n_input, n_method), dtype=object)
     for i in range(n_state + n_input):
@@ -190,7 +219,7 @@ def plot_timeseries(path, wd, res, X_validation, estimators, labels=None):
                 ax[i, j].set_ylabel(rf'$x_{i}[k]$')
             else:
                 ax[i, j].set_ylabel(rf'$u_{i - n_state}[k]$')
-    # Predict and plot
+    # Iterate over estimators
     for (j, est, lab) in zip(range(n_method), estimators, labels):
         try:
             X_prediction = est.predict_multistep(X_validation)
@@ -199,6 +228,7 @@ def plot_timeseries(path, wd, res, X_validation, estimators, labels=None):
         except Exception as e:
             logging.warning(e)
             score = np.nan
+        # Save results
         res[path] = {
             'X_prediction': X_prediction,
             'X_validation': X_validation,
@@ -257,22 +287,15 @@ def plot_error(path, wd, res, X_validation, estimators, labels=None):
     fig.savefig(wd.joinpath(f'{path}.png'))
 
 
-def plot_weights(path, wd, res, ss_ct, ss_dt):
+def plot_weights(w_dt, mag_dt, mag_dt_db):
     """Plot Hinf weights."""
     fig, ax = plt.subplots(1, 2, constrained_layout=True)
     ax[0].grid(True, linestyle='--')
-    ax[1].grid(True, linestyle='--')
-    # Continuous time
-    w_ct, H_ct = signal.freqresp(ss_ct)
-    mag_ct = 20 * np.log10(np.abs(H_ct))
     ax[0].semilogx(w_ct, mag_ct)
     ax[0].set_xlabel('Frequency [rad/s]')
     ax[0].set_ylabel('Magnitude [dB]')
     ax[0].set_title('Continuous-time weight')
-    # Discrete time
-    w_dt, H_dt = signal.dfreqresp(ss_dt)
-    mag_dt = np.abs(H_dt)
-    mag_dt_db = 20 * np.log10(mag_dt)
+    ax[1].grid(True, linestyle='--')
     ax[1].plot(w_dt, mag_dt, color='C0')
     ax[1].set_xlabel('Frequency [rad/sample]')
     ax[1].set_ylabel('Magnitude', color='C0')
@@ -282,17 +305,7 @@ def plot_weights(path, wd, res, ss_ct, ss_dt):
     ax2.plot(w_dt, mag_dt_db, color='C1')
     ax2.set_ylabel('Magnitude [dB]', color='C1')
     ax2.tick_params(axis='y', labelcolor='C1')
-    res[path] = {
-        'w_ct': w_ct,
-        'H_ct': H_ct,
-        'mag_ct': mag_ct,
-        'w_dt': w_dt,
-        'H_dt': H_dt,
-        'mag_dt': mag_dt,
-        'mag_dt_db': mag_dt_db,
-    }
-    # Save figure
-    fig.savefig(wd.joinpath(f'{path}.png'))
+    return fig
 
 
 def plot_eigenvalues(path, wd, res, estimators, labels=None):
