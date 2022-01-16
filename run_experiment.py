@@ -23,6 +23,7 @@ import skopt.plots
 from matplotlib import pyplot as plt
 from scipy import linalg, signal
 from sklearn.experimental import enable_halving_search_cv
+# TODO CHECK UNUSED
 
 
 @hydra.main(config_path='config', config_name='config')
@@ -38,8 +39,6 @@ def main(config: omegaconf.DictConfig) -> None:
     # Configure matplotlib
     plt.rc('figure', figsize=(16, 9))
     plt.rc('lines', linewidth=2)
-    plt.rc('axes', grid=True)
-    plt.rc('grid', linestyle='--')
 
     # Set up logging
     logging.basicConfig(level=logging.INFO)
@@ -86,143 +85,17 @@ def main(config: omegaconf.DictConfig) -> None:
     X_training, X_validation = split_training_validation(
         dataset, n_steps_training)
 
-    # Perform cross-validation or a single-shot run
-    if (('cv_config' in config.regressor.keys())
-            and ('cv_params' in config.regressor.keys())):
-        # Identify episode feature
-        if dataset['episode_feature']:
-            groups = X_training[:, 0]
-        else:
-            groups = np.zeros((X_training.shape[0], 1))
-        # Split episodes into groups
-        cv = sklearn.model_selection.GroupShuffleSplit(
-            random_state=config.regressor.cv_config.seed,
-            n_splits=config.regressor.cv_config.n_splits,
-        )
-
-        # Run BayesSearchCV or or GridSearchCV
-        if config.regressor.cv_config.method == 'bayes':
-            # BayesSearchCV
-            cv_dict = {}
-            for k, v in dict(config.regressor.cv_params).items():
-                cv_dict[k] = tuple(v)
-            gs = skopt.BayesSearchCV(
-                kp,
-                cv_dict,
-                cv=cv,
-                n_jobs=config.regressor.cv_config.n_jobs,
-                n_iter=config.regressor.cv_config.n_iter,
-                refit=True,
-                verbose=4,
-                # scoring=pykoop.KoopmanPipeline.make_scorer(
-                #     n_steps=n_steps_validation),
-                scoring=pykoop.KoopmanPipeline.make_scorer(n_steps=None),
-                error_score=config.regressor.cv_config.error_score,
-                optimizer_kwargs={
-                    'base_estimator': 'GP',
-                    'n_initial_points': 16,
-                    'initial_point_generator': 'grid',
-                })
-
-            # Set up ``BayesSearchCV`` callbacks
-            cb = [on_step_callback]
-            if 'total_time' in config.regressor.cv_config.keys():
-                cb.append(
-                    skopt.callbacks.DeadlineStopper(
-                        config.regressor.cv_config.total_time * 60 * 60))
-
-            # Run cross-validation
-            gs.fit(
-                X_training,
-                n_inputs=dataset['n_inputs'],
-                episode_feature=dataset['episode_feature'],
-                callback=cb,
-                groups=groups,
-            )
-            fig, ax = plt.subplots()
-            skopt.plots.plot_convergence(gs.optimizer_results_, ax=ax)
-            fig.savefig(wd.joinpath(f'skopt_conv.png'))
-        elif config.regressor.cv_config.method == 'halving':
-            # Get ``n_states_out_``
-            X_dummy = np.zeros_like(X_validation)
-            kp_dummy = sklearn.base.clone(kp)
-            kp_dummy.fit_transformers(
-                X_dummy,
-                n_inputs=dataset['n_inputs'],
-                episode_feature=dataset['episode_feature'],
-            )
-            n_states_out = kp_dummy.n_states_out_
-            # HalvingGridSearchCV
-            params = get_gridsearchcv_params(config)
-            # Configure cross-validation
-            gs = sklearn.model_selection.HalvingGridSearchCV(
-                kp,
-                params,
-                cv=cv,
-                factor=config.regressor.cv_config.factor,
-                resource='regressor__tsvd_shifted__truncation_param',
-                max_resources=n_states_out,
-                min_resources='exhaust',
-                scoring=pykoop.KoopmanPipeline.make_scorer(n_steps=None),
-                refit=True,
-                # Create a new seed based on the original one
-                random_state=(2 * config.regressor.cv_config.seed - 1),
-                n_jobs=config.regressor.cv_config.n_jobs,
-                verbose=4,
-            )
-            # Run cross-validation
-            gs.fit(
-                X_training,
-                n_inputs=dataset['n_inputs'],
-                episode_feature=dataset['episode_feature'],
-                groups=groups,
-            )
-        else:
-            # GridSearchCV
-            params = get_gridsearchcv_params(config)
-            # Configure cross-validation
-            gs = sklearn.model_selection.GridSearchCV(
-                kp,
-                params,
-                cv=cv,
-                n_jobs=config.regressor.cv_config.n_jobs,
-                refit=f'{n_steps_validation}_steps',
-                verbose=4,
-                scoring={
-                    f'{n_steps_training}_steps':
-                    pykoop.KoopmanPipeline.make_scorer(
-                        n_steps=n_steps_training),
-                    f'{n_steps_validation}_steps':
-                    pykoop.KoopmanPipeline.make_scorer(
-                        n_steps=n_steps_validation),
-                    f'{n_steps_validation // 10}_steps':
-                    pykoop.KoopmanPipeline.make_scorer(
-                        n_steps=(n_steps_validation // 10)),
-                },
-            )
-            # Run cross-validation
-            gs.fit(
-                X_training,
-                n_inputs=dataset['n_inputs'],
-                episode_feature=dataset['episode_feature'],
-                groups=groups,
-            )
-        # Save results
-        cv_results = pandas.DataFrame(gs.cv_results_)
-        cv_results.to_csv(wd.joinpath('cv_results.csv'))
-        estimator = gs.best_estimator_
+    # Fit pipeline
+    if not config.profile:
+        kp.fit(X_training,
+               n_inputs=dataset['n_inputs'],
+               episode_feature=dataset['episode_feature'])
     else:
-        # Fit pipeline
-        if not config.profile:
-            kp.fit(X_training,
-                   n_inputs=dataset['n_inputs'],
-                   episode_feature=dataset['episode_feature'])
-        else:
-            # ``@profile`` decorator is defined by ``mprof``
-            profile(kp.fit)(X_training,
-                            n_inputs=dataset['n_inputs'],
-                            episode_feature=dataset['episode_feature'])
-        estimator = kp
+        # ``@profile`` decorator is defined by ``mprof``
+        profile(kp.fit)(X_training,
+                        n_inputs=dataset['n_inputs'],
+                        episode_feature=dataset['episode_feature'])
+    estimator = kp
 
     # Save best estimator
     with open(wd.joinpath('estimator.pickle'), 'wb') as f:
@@ -262,11 +135,6 @@ def main(config: omegaconf.DictConfig) -> None:
     log_execution_time_and_notify(execution_time, config.notify)
 
 
-def on_step_callback(res):
-    """Print iteration of ``BayesSearchCV``."""
-    logging.info(f'Starting BayesSearchCV iteration: {res}')
-
-
 def calc_n_steps(dataset: Dict) -> Tuple[int, int]:
     """Figure out smallest number of training and validation timesteps."""
     sizes_training = []
@@ -300,19 +168,6 @@ def split_training_validation(
         X_training = dataset['X'][:(n_steps_training // 2), :]
         X_validation = dataset['X'][(n_steps_training // 2):, :]
     return (X_training, X_validation)
-
-
-def get_gridsearchcv_params(
-        config: omegaconf.DictConfig) -> Union[Dict, List[Dict]]:
-    """Format parameters for ``GridSearchCV``."""
-    params: Union[Dict, List[Dict]]
-    if (type(config.regressor.cv_params) is omegaconf.listconfig.ListConfig):
-        params = []
-        for param in config.regressor.cv_params:
-            params.append(dict(param))
-    else:
-        params = dict(config.regressor.cv_params)
-    return params
 
 
 def log_execution_time_and_notify(execution_time: float, notify: bool) -> None:
@@ -349,6 +204,7 @@ def plot_timeseries(path, wd, res, X_validation, estimators, labels=None):
     for i in range(n_state + n_input):
         for j in range(n_method):
             ax[i, j] = fig.add_subplot(gs[i, j])
+            ax[i, j].grid(True, linestyle='--')
             ax[i, j].set_xlabel(r'$k$')
             if i < n_state:
                 ax[i, j].set_ylabel(rf'$x_{i}[k]$')
@@ -399,6 +255,7 @@ def plot_error(path, wd, res, X_validation, estimators, labels=None):
     for i in range(n_state):
         for j in range(n_method):
             ax[i, j] = fig.add_subplot(gs[i, j])
+            ax[i, j].grid(True, linestyle='--')
             ax[i, j].set_xlabel(r'$k$')
             ax[i, j].set_ylabel(rf'$e_{i}[k]$')
 
@@ -423,6 +280,8 @@ def plot_error(path, wd, res, X_validation, estimators, labels=None):
 def plot_weights(path, wd, res, ss_ct, ss_dt):
     """Plot Hinf weights."""
     fig, ax = plt.subplots(1, 2, constrained_layout=True)
+    ax[0].grid(True, linestyle='--')
+    ax[1].grid(True, linestyle='--')
     # Continuous time
     w_ct, H_ct = signal.freqresp(ss_ct)
     mag_ct = 20 * np.log10(np.abs(H_ct))
@@ -503,10 +362,12 @@ def plot_eigenvalues(path, wd, res, estimators, labels=None):
         ax[0, i].set_xlabel(r'$\mathrm{Re}(\lambda)$')
         ax[0, i].set_ylabel(r'$\mathrm{Im}(\lambda)$', labelpad=30)
         ax[0, i].set_rmax(10)
+        ax[0, i].grid(True, linestyle='--')
     for i in range(n_plt):
         ax[1, i] = fig.add_subplot(gs[1, i])
         ax[1, i].set_xlabel(r'$i$')
         ax[1, i].set_ylabel(r'$\|\lambda_i\|$')
+        ax[1, i].grid(True, linestyle='--')
 
     # Plot contents
     for (i, est, lab) in zip(range(n_plt), estimators, labels):
@@ -534,7 +395,7 @@ def plot_matshow(path, wd, res, estimator, label=None):
     im = ax.matshow(U, vmin=-mag, vmax=mag, cmap='seismic')
     ax.vlines(p_theta - 0.5, -0.5, p_theta - 0.5, color='green')
     ax.set_title(label)
-    fig.colorbar(im)
+    fig.colorbar(im, ax=ax)
     # Save figure
     res[path] = {
         'U': U,
@@ -571,6 +432,7 @@ def plot_mimo_bode(path, wd, res, estimator, t_step, label=None):
     mag_db = 20 * np.log10(mag)
     # Construct Bode plot
     fig, ax = plt.subplots(constrained_layout=True)
+    ax.grid(True, linestyle='--')
     ax.plot(f_plot, mag, color='C0')
     ax.set_xlabel('Frequency (Hz)')
     ax.set_ylabel('Maximum singular value of G[z]', color='C0')
@@ -607,6 +469,7 @@ def plot_convergence(path, wd, res, estimator, label=None):
         obj = np.array(obj_log)
         # Plot objective
         fig, ax = plt.subplots(constrained_layout=True)
+        ax.grid(True, linestyle='--')
         ax.plot(obj)
         ax.set_xlabel('Iteration')
         ax.set_ylabel('Objective function value')
