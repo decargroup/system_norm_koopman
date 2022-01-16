@@ -17,7 +17,6 @@ import pykoop.lmi_regressors
 import sklearn.preprocessing
 from matplotlib import pyplot as plt
 from scipy import linalg, signal
-# TODO CHECK UNUSED
 
 
 @hydra.main(config_path='config', config_name='config')
@@ -29,27 +28,21 @@ def main(config: omegaconf.DictConfig) -> None:
     """
     # Keep track of time
     start_time = time.monotonic()
-
     # Configure matplotlib
     plt.rc('figure', figsize=(16, 9))
     plt.rc('lines', linewidth=2)
-
     # Set up logging
     logging.basicConfig(level=logging.INFO)
-
     # Get working directory
     wd = pathlib.Path(os.getcwd())
-
     # Dict where all relevant results will be saved:
     res: Dict[str, Dict[str, Any]] = {}
-
-    # Load data
+    # Load dataset from config
     original_wd = pathlib.Path(hydra.utils.get_original_cwd())
     dataset_path = original_wd.joinpath(config.dataset)
     with open(dataset_path, 'rb') as f:
         dataset = pickle.load(f)
-
-    # Instantiate lifting functions
+    # Instantiate lifting functions from config
     lifting_functions: Optional[pykoop.KoopmanLiftingFn]
     if config.lifting_functions.lifting_functions:
         lifting_functions = []
@@ -57,56 +50,45 @@ def main(config: omegaconf.DictConfig) -> None:
             lifting_functions.append((key, hydra.utils.instantiate(lf)))
     else:
         lifting_functions = None
-
-    # Instantiate regressor
+    # Instantiate regressor from config
     regressor = hydra.utils.instantiate(config.regressor.regressor)
     if 't_step' in regressor.get_params().keys():
         regressor.set_params(t_step=dataset['t_step'])
-
-    # Instantiate pipeline
+    # Instantiate Koopman pipeline
     kp = pykoop.KoopmanPipeline(
         lifting_functions=lifting_functions,
         regressor=regressor,
     )
-
-    # Log config
+    # Log config contents
     logging.info(f'Config: {config}')
-
     # Figure out smallest number of training and validation timesteps
     n_steps_training, n_steps_validation = calc_n_steps(dataset)
-
     # Split training and validation data
     X_training, X_validation = split_training_validation(
         dataset, n_steps_training)
-
-    # Fit pipeline
+    # Fit pipeline (wrap in Memory Profiler ``profile`` if required)
     if not config.profile:
         kp.fit(X_training,
                n_inputs=dataset['n_inputs'],
                episode_feature=dataset['episode_feature'])
     else:
-        # ``@profile`` decorator is defined by ``mprof``
+        # ``@profile`` decorator is defined by ``mprof run --python ...``
         profile(kp.fit)(X_training,
                         n_inputs=dataset['n_inputs'],
                         episode_feature=dataset['episode_feature'])
-    estimator = kp
-
-    # Save best estimator
+    # Save fit estimator
     with open(wd.joinpath('estimator.pickle'), 'wb') as f:
-        pickle.dump(estimator, f)
-
-    # Plot weights
-    if (hasattr(estimator.regressor_, 'ss_ct_')
-            and hasattr(estimator.regressor_, 'ss_dt_')):
+        pickle.dump(kp, f)
+    # Plot weights if present
+    if (hasattr(kp.regressor_, 'ss_ct_') and hasattr(kp.regressor_, 'ss_dt_')):
         plot_weights(
             'weights',
             wd,
             res,
-            estimator.regressor_.ss_ct_,
-            estimator.regressor_.ss_dt_,
+            kp.regressor_.ss_ct_,
+            kp.regressor_.ss_dt_,
         )
-
-    # Plot validation sets
+    # Plot validation set prediction and errors
     episodes = pykoop.split_episodes(
         X_validation, episode_feature=dataset['episode_feature'])
     for (i, X_i) in episodes:
@@ -114,33 +96,51 @@ def main(config: omegaconf.DictConfig) -> None:
             i * np.ones((X_i.shape[0], 1)),
             X_i,
         ))
-        plot_timeseries(f'timeseries_{i}', wd, res, X_i_with_ep, [estimator])
-        plot_error(f'error_{i}', wd, res, X_i_with_ep, [estimator])
-    plot_eigenvalues('eigenvalues', wd, res, [estimator])
-    plot_matshow('matshow', wd, res, estimator)
-    plot_mimo_bode('bode', wd, res, estimator, dataset['t_step'])
-    plot_convergence('convergence', wd, res, estimator)
+        plot_timeseries(f'timeseries_{i}', wd, res, X_i_with_ep, [kp])
+        plot_error(f'error_{i}', wd, res, X_i_with_ep, [kp])
+    # Plot other interesting estimator propreties
+    plot_eigenvalues('eigenvalues', wd, res, [kp])
+    plot_matshow('matshow', wd, res, kp)
+    plot_mimo_bode('bode', wd, res, kp, dataset['t_step'])
+    plot_convergence('convergence', wd, res, kp)
     # Save pickle of results
     with open(wd.joinpath('run_experiment.pickle'), 'wb') as f:
         pickle.dump(res, f)
     # End timer
     end_time = time.monotonic()
     execution_time = end_time - start_time
-    log_execution_time_and_notify(execution_time, config.notify)
+    # Format execution time nicely
+    formatted_execution_time = datetime.timedelta(seconds=execution_time)
+    # Log execution time
+    logging.info(f'Execution time: {formatted_execution_time}')
+    # Send push notification if ``ntfy`` is installed and configured.
+    if config.notify:
+        cfg = hydra.core.hydra_config.HydraConfig.get().job.override_dirname
+        status = f'Config: {cfg}\nExecution time: {formatted_execution_time}'
+        try:
+            subprocess.call(('ntfy', '--title', 'Job done', 'send', status))
+        except Exception:
+            logging.warning('To enable push notifications, install `ntfy` '
+                            'from: https://github.com/dschep/ntfy')
 
 
 def calc_n_steps(dataset: Dict) -> Tuple[int, int]:
-    """Figure out smallest number of training and validation timesteps."""
+    """Find smallest number of training and validation timesteps."""
     sizes_training = []
     sizes_validation = []
+    # Split dataset into episodes
     episodes = pykoop.split_episodes(
         dataset['X'], episode_feature=dataset['episode_feature'])
+    # Iterate over episodes, logging shape
     for (i, X_i) in episodes:
         if i in dataset['validation_episodes']:
+            # Episode is in validation set
             sizes_validation.append(X_i.shape[0])
         else:
+            # Episode is in training set
             # If there's no episode feature, everything will fall here
             sizes_training.append(X_i.shape[0])
+    # Calculate minimum sizes
     n_steps_training = np.min(sizes_training)
     n_steps_validation = np.min(sizes_validation)
     if n_steps_validation > n_steps_training:
@@ -152,6 +152,7 @@ def split_training_validation(
         dataset: Dict, n_steps_training: int) -> Tuple[np.ndarray, np.ndarray]:
     """Split training and validation data."""
     if dataset['episode_feature']:
+        # If there's an episode feature, split the episodes using that
         training_idx = np.where(
             np.in1d(dataset['X'][:, 0], dataset['training_episodes']))[0]
         validation_idx = np.where(
@@ -159,25 +160,10 @@ def split_training_validation(
         X_training = dataset['X'][training_idx, :]
         X_validation = dataset['X'][validation_idx, :]
     else:
+        # If there's no episode feature, split the data in half
         X_training = dataset['X'][:(n_steps_training // 2), :]
         X_validation = dataset['X'][(n_steps_training // 2):, :]
     return (X_training, X_validation)
-
-
-def log_execution_time_and_notify(execution_time: float, notify: bool) -> None:
-    """Log execution time and notify."""
-    formatted_execution_time = datetime.timedelta(seconds=execution_time)
-    logging.info(f'Execution time: {formatted_execution_time}')
-
-    # Push notification if ``ntfy`` is installed and configured.
-    cfg = hydra.core.hydra_config.HydraConfig.get().job.override_dirname
-    status = f'Config: {cfg}\nExecution time: {formatted_execution_time}'
-    if notify:
-        try:
-            subprocess.call(('ntfy', '--title', 'CV complete', 'send', status))
-        except Exception:
-            logging.warning('To enable push notifications, install `ntfy` '
-                            'from: https://github.com/dschep/ntfy')
 
 
 def plot_timeseries(path, wd, res, X_validation, estimators, labels=None):
