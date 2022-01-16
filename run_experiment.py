@@ -32,7 +32,7 @@ def main(config: omegaconf.DictConfig) -> None:
     """
     # Keep track of time
     start_time = time.monotonic()
-    # Configure matplotlib
+    # Configure Matplotlib
     plt.rc('figure', figsize=(16, 9))
     plt.rc('lines', linewidth=2)
     # Set up logging
@@ -56,6 +56,7 @@ def main(config: omegaconf.DictConfig) -> None:
         lifting_functions = None
     # Instantiate regressor from config
     regressor = hydra.utils.instantiate(config.regressor.regressor)
+    # Set regressor timestep from dataset after instantiation if required
     if 't_step' in regressor.get_params().keys():
         regressor.set_params(t_step=dataset['t_step'])
     # Instantiate Koopman pipeline
@@ -63,32 +64,40 @@ def main(config: omegaconf.DictConfig) -> None:
         lifting_functions=lifting_functions,
         regressor=regressor,
     )
-    # Log config contents
+    # Log contents of config
     logging.info(f'Config: {config}')
-    # Figure out smallest number of training and validation timesteps
+    # Find smallest number of training and validation timesteps
     n_steps_training, n_steps_validation = calc_n_steps(dataset)
     # Split training and validation data
     X_training, X_validation = split_training_validation(
-        dataset, n_steps_training)
+        dataset,
+        n_steps_training,
+    )
     # Fit pipeline (wrap in Memory Profiler ``profile`` if required)
     if not config.profile:
-        kp.fit(X_training,
-               n_inputs=dataset['n_inputs'],
-               episode_feature=dataset['episode_feature'])
+        # Fit pipeline normally
+        kp.fit(
+            X_training,
+            n_inputs=dataset['n_inputs'],
+            episode_feature=dataset['episode_feature'],
+        )
     else:
+        # Fit pipeline while profiling fit function with Memory Profiler
         # ``@profile`` decorator is defined by ``mprof run --python ...``
-        profile(kp.fit)(X_training,
-                        n_inputs=dataset['n_inputs'],
-                        episode_feature=dataset['episode_feature'])
-    # Save fit estimator
+        profile(kp.fit)(
+            X_training,
+            n_inputs=dataset['n_inputs'],
+            episode_feature=dataset['episode_feature'],
+        )
+    # Save fit estimator to pickle
     with open(wd.joinpath('estimator.pickle'), 'wb') as f:
         pickle.dump(kp, f)
     # Plot weights if present
     if (hasattr(kp.regressor_, 'ss_ct_') and hasattr(kp.regressor_, 'ss_dt_')):
-        # Continuous time
+        # Continuous time response
         w_ct, H_ct = signal.freqresp(kp.regressor_.ss_ct_)
         mag_ct = 20 * np.log10(np.abs(H_ct))
-        # Discrete time
+        # Discrete time response
         w_dt, H_dt = signal.dfreqresp(kp.regressor_.ss_dt_)
         mag_dt = np.abs(H_dt)
         mag_dt_db = 20 * np.log10(mag_dt)
@@ -106,61 +115,64 @@ def main(config: omegaconf.DictConfig) -> None:
         # Plot weight results
         fig = plot_weights(w_ct, mag_ct, w_dt, mag_dt, mag_dt_db)
         fig.savefig(wd.joinpath(f'{key}.png'))
-    # Plot validation set prediction and errors
+    # Split validation episodes using episode feature
     episodes = pykoop.split_episodes(
         X_validation,
         episode_feature=dataset['episode_feature'],
     )
+    # Iterate over all validation episodes and plot/save them
     for (i, X_i) in episodes:
+        # Re-add episode feature to current validation set
         X_validation_i = np.hstack((i * np.ones((X_i.shape[0], 1)), X_i))
-        #######################################################################
+        # Perform prediction with fit estimator
         X_prediction = kp.predict_multistep(X_validation_i)
+        # Calculate score. If the prediction diverges, set the score to NaN
         try:
             scorer = pykoop.KoopmanPipeline.make_scorer()
             score = scorer(kp, X_validation_i)
         except Exception as e:
             logging.warning(e)
             score = np.nan
-        # Save results
+        # Save results in dict
         key = f'timeseries_{i}'
         res[key] = {
             'X_prediction': X_prediction,
             'X_validation': X_validation_i,
         }
+        # Plot prediction and validation timeseries
         fig = plot_timeseries(X_validation_i, X_prediction, score)
         fig.savefig(wd.joinpath(f'{key}.png'))
-        #######################################################################
+        # Plot error
         key = f'error_{i}'
         fig = plot_error(X_validation_i, X_prediction, score)
         fig.savefig(wd.joinpath(f'{key}.png'))
-        #######################################################################
-    # Plot other interesting estimator propreties
-    ###########################################################################
+    # Extract Koopman matrix
     U = kp.regressor_.coef_.T
     A = U[:, :U.shape[0]]
+    B = U[:, U.shape[0]:]
+    # Compute eigenvalues of Koopman matrix
     eigv = linalg.eig(A)[0]
     eigv_mag = np.absolute(eigv)
     idx = eigv_mag.argsort()[::-1]
     eigv_mag_sorted = eigv_mag[idx]
+    # Save eigenvalues
     key = 'eigenvalues'
     res[key] = {
         'eigv': eigv,
         'eigv_mag': eigv_mag_sorted,
     }
+    # Plot eigenvalues
     fig = plot_eigenvalues(eigv, eigv_mag_sorted)
     fig.savefig(wd.joinpath(f'{key}.png'))
-    ###########################################################################
-    U = kp.regressor_.coef_.T
+    # Save Koopman matrix
     key = 'matshow'
     res[key] = {
         'U': U,
     }
+    # Plot Koopman matrix
     fig = plot_matshow(U)
     fig.savefig(wd.joinpath(f'{key}.png'))
-    ###########################################################################
-    U = kp.regressor_.coef_.T
-    A = U[:, :U.shape[0]]
-    B = U[:, U.shape[0]:]
+    # Compute MIMO frequency response of Koopman system
     C = np.eye(U.shape[0])
     f_samp = 1 / dataset['t_step']
     f_plot = np.linspace(0, f_samp / 2, 1000)
@@ -169,6 +181,7 @@ def main(config: omegaconf.DictConfig) -> None:
         bode.append(sigma_bar_G(f, dataset['t_step'], A, B, C))
     mag = np.array(bode)
     mag_db = 20 * np.log10(mag)
+    # Save MIMO frequency response
     key = 'bode'
     res[key] = {
         'f_samp': f_samp,
@@ -176,15 +189,18 @@ def main(config: omegaconf.DictConfig) -> None:
         'mag': mag,
         'mag_db': mag_db,
     }
+    # Plot MIMO frequency response
     fig = plot_mimo_bode(f_plot, mag, mag_db)
     fig.savefig(wd.joinpath(f'{key}.png'))
-    ###########################################################################
+    # If the regressor was a BMI solved through iteration, extract the
+    # convergence information
+    obj_log: Optional[np.ndarray] = None
     if hasattr(kp.regressor_, 'objective_log_'):
         obj_log = np.array(kp.regressor_.objective_log_)
     elif hasattr(kp.regressor_, 'hinf_regressor_'):
+        # Special case for ``LmiHinfZpkMeta``
         obj_log = np.array(kp.regressor_.hinf_regressor_.objective_log_)
-    else:
-        obj_log = None
+    # Save and plot the convergence information if present
     if obj_log is not None:
         key = 'convergence'
         res[key] = {
@@ -192,8 +208,7 @@ def main(config: omegaconf.DictConfig) -> None:
         }
         fig = plot_convergence(obj_log)
         fig.savefig(wd.joinpath(f'{key}.png'))
-    ###########################################################################
-    # Save pickle of results
+    # Save pickle of all results
     with open(wd.joinpath('run_experiment.pickle'), 'wb') as f:
         pickle.dump(res, f)
     # End timer
@@ -205,11 +220,13 @@ def main(config: omegaconf.DictConfig) -> None:
     logging.info(f'Execution time: {formatted_execution_time}')
     # Send push notification if ``ntfy`` is installed and configured.
     if config.notify:
+        # Form string to send in push notification
         cfg = hydra.core.hydra_config.HydraConfig.get().job.override_dirname
         status = f'Config: {cfg}\nExecution time: {formatted_execution_time}'
         try:
             subprocess.call(('ntfy', '--title', 'Job done', 'send', status))
-        except Exception:
+        except Exception as e:
+            logging.warning(e)
             logging.warning('To enable push notifications, install `ntfy` '
                             'from: https://github.com/dschep/ntfy')
 
@@ -217,8 +234,6 @@ def main(config: omegaconf.DictConfig) -> None:
 # --------------------------------------------------------------------------- #
 # Helper functions
 # --------------------------------------------------------------------------- #
-
-# TODO Type annotations
 
 
 def calc_n_steps(dataset: Dict) -> Tuple[int, int]:
@@ -263,7 +278,8 @@ def split_training_validation(
     return (X_training, X_validation)
 
 
-def sigma_bar_G(f, t_step, A, B, C):
+def sigma_bar_G(f: float, t_step: float, A: np.ndarray, B: np.ndarray,
+                C: np.ndarray) -> np.ndarray:
     """Maximum singular value of transfer matrix at a frequency."""
     z = np.exp(1j * 2 * np.pi * f * t_step)
     G = C @ linalg.solve((np.diag([z] * A.shape[0]) - A), B)
@@ -275,10 +291,9 @@ def sigma_bar_G(f, t_step, A, B, C):
 # Plotting functions
 # --------------------------------------------------------------------------- #
 
-# TODO Type annotations
 
-
-def plot_timeseries(X_validation, X_prediction, score):
+def plot_timeseries(X_validation: np.ndarray, X_prediction: np.ndarray,
+                    score: float) -> plt.Figure:
     # Compute state and input dimensions
     n_state = X_prediction.shape[1] - 1
     n_input = X_validation.shape[1] - n_state - 1
@@ -301,7 +316,8 @@ def plot_timeseries(X_validation, X_prediction, score):
     return fig
 
 
-def plot_error(X_validation, X_prediction, score):
+def plot_error(X_validation: np.ndarray, X_prediction: np.ndarray,
+               score: float) -> plt.Figure:
     # Compute state and input dimensions
     n_state = X_prediction.shape[1] - 1
     n_input = X_validation.shape[1] - n_state - 1
@@ -323,7 +339,7 @@ def plot_error(X_validation, X_prediction, score):
     return fig
 
 
-def plot_weights(w_ct, mag_ct, w_dt, mag_dt, mag_dt_db):
+def plot_weights(w_ct: np.ndarray, mag_ct: np.ndarray, w_dt: np.ndarray, mag_dt: np.ndarray, mag_dt_db: np.ndarray) -> plt.Figure:
     """Plot Hinf weights."""
     fig, ax = plt.subplots(1, 2, constrained_layout=True)
     ax[0].grid(True, linestyle='--')
@@ -344,7 +360,7 @@ def plot_weights(w_ct, mag_ct, w_dt, mag_dt, mag_dt_db):
     return fig
 
 
-def plot_eigenvalues(eigv, eigv_mag):
+def plot_eigenvalues(eigv: np.ndarray, eigv_mag: np.ndarray) -> plt.Figure:
     fig = plt.figure(constrained_layout=True)
     gs = fig.add_gridspec(2, 1)
     ax = np.empty((2, ), dtype=object)
@@ -368,7 +384,7 @@ def plot_eigenvalues(eigv, eigv_mag):
     return fig
 
 
-def plot_matshow(U):
+def plot_matshow(U: np.ndarray) -> plt.Figure:
     p_theta, p = U.shape
     # Plot Koopman matrix and dividing line between ``A`` and ``B``.
     fig, ax = plt.subplots(constrained_layout=True)
@@ -379,7 +395,7 @@ def plot_matshow(U):
     return fig
 
 
-def plot_mimo_bode(f_plot, mag, mag_db):
+def plot_mimo_bode(f_plot: np.ndarray, mag: np.ndarray, mag_db: np.ndarray) -> plt.Figure:
     """Plot MIMO Bode plot."""
     fig, ax = plt.subplots(constrained_layout=True)
     ax.grid(True, linestyle='--')
@@ -394,7 +410,7 @@ def plot_mimo_bode(f_plot, mag, mag_db):
     return fig
 
 
-def plot_convergence(obj_log):
+def plot_convergence(obj_log: np.ndarray) -> Figure:
     fig, ax = plt.subplots(constrained_layout=True)
     ax.grid(True, linestyle='--')
     ax.plot(obj_log)
