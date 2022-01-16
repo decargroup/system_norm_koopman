@@ -410,7 +410,7 @@ def plot_mimo_bode(f_plot: np.ndarray, mag: np.ndarray, mag_db: np.ndarray) -> p
     return fig
 
 
-def plot_convergence(obj_log: np.ndarray) -> Figure:
+def plot_convergence(obj_log: np.ndarray) -> plt.Figure:
     fig, ax = plt.subplots(constrained_layout=True)
     ax.grid(True, linestyle='--')
     ax.plot(obj_log)
