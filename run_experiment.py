@@ -86,10 +86,10 @@ def main(config: omegaconf.DictConfig) -> None:
     # Plot weights if present
     if (hasattr(kp.regressor_, 'ss_ct_') and hasattr(kp.regressor_, 'ss_dt_')):
         # Continuous time
-        w_ct, H_ct = signal.freqresp(kp.regressor.ss_ct_)
+        w_ct, H_ct = signal.freqresp(kp.regressor_.ss_ct_)
         mag_ct = 20 * np.log10(np.abs(H_ct))
         # Discrete time
-        w_dt, H_dt = signal.dfreqresp(kp.regressor.ss_dt_)
+        w_dt, H_dt = signal.dfreqresp(kp.regressor_.ss_dt_)
         mag_dt = np.abs(H_dt)
         mag_dt_db = 20 * np.log10(mag_dt)
         # Save weight results
@@ -104,7 +104,7 @@ def main(config: omegaconf.DictConfig) -> None:
             'mag_dt_db': mag_dt_db,
         }
         # Plot weight results
-        fig = plot_weights(w_dt, mag_dt, mag_dt_db)
+        fig = plot_weights(w_ct, mag_ct, w_dt, mag_dt, mag_dt_db)
         fig.savefig(wd.joinpath(f'{key}.png'))
     # Plot validation set prediction and errors
     episodes = pykoop.split_episodes(
@@ -323,7 +323,7 @@ def plot_error(X_validation, X_prediction, score):
     return fig
 
 
-def plot_weights(w_dt, mag_dt, mag_dt_db):
+def plot_weights(w_ct, mag_ct, w_dt, mag_dt, mag_dt_db):
     """Plot Hinf weights."""
     fig, ax = plt.subplots(1, 2, constrained_layout=True)
     ax[0].grid(True, linestyle='--')
