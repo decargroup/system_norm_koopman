@@ -1,1 +1,5 @@
+# Linear lifting functions
+#
+# Default lifting functions are linear, so nothing needs to be specified here.
+
 lifting_functions: null

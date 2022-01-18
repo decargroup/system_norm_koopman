@@ -1,4 +1,43 @@
-"""Run a Koopman experiment."""
+"""Run a Koopman experiment with Hydra.
+
+Normally, ``doit`` is used to generate the plots used in *System Norm
+Regularization Methods for Koopman Operator Approximation*. However, you can
+directly run experiments with Hydra using this file.
+
+To run an experiment with Hydra, the minimal working command is::
+
+    $ python ./run_experiment.py dataset=./build/datasets/<DATASET>.pickle
+
+In that case, the default lifting functions and regressor will be taken from
+``./config/config.yaml``. Note that the desired dataset must first be pickled
+with::
+
+    $ doit pickle:<DATASET>
+
+When loaded, this dataset is a dict with keys:
+
+    * ``'X'``: training and validation data
+    * ``'n_inputs'``: number of inputs (last features of ``X``)
+    * ``'episode_feature'``: presence of episode feature
+    * ``'training_episodes'``: list of indices of training episodes
+    * ``'validation_episodes'``: list of indices of validation episodes
+    * ``'t_step'``: timestep (s)
+
+Additional configs are present as ``yaml`` files in
+``./config/lifting_functions/`` and ``./config/regressor/``. For example,
+to use 2nd order polynomial lifting functions with an H-infinity regressor,
+run::
+
+    $ python ./run_experiment.py dataset=./build/datasets/<DATASET>.pickle \
+    > lifting_functions=polynomial2 regressor=hinf
+
+The corresponding configuration files are ``polynomial2.yaml`` and
+``hinf.yaml``. Details about each configuration can be found as comments in
+their respective files.
+
+Unless you specify otherwise, the job outputs will be saved in
+``./outputs/<DATE>/<TIME>/``.
+"""
 
 import datetime
 import logging
@@ -18,17 +57,15 @@ import sklearn.preprocessing
 from matplotlib import pyplot as plt
 from scipy import linalg, signal
 
-# --------------------------------------------------------------------------- #
-# Main job
-# --------------------------------------------------------------------------- #
-
 
 @hydra.main(config_path='config', config_name='config')
 def main(config: omegaconf.DictConfig) -> None:
     """Run a Koopman experiment.
 
-    Dataset must contain: ``n_inputs``, ``episode_feature``, ``t_step``, ``X``,
-    ``training_episodes``, and ``validation_episodes``.
+    Parameters
+    ----------
+    config : omegaconf.DictConfig
+        Hydra configuration dictionary.
     """
     # Keep track of time
     start_time = time.monotonic()
@@ -69,10 +106,7 @@ def main(config: omegaconf.DictConfig) -> None:
     # Find smallest number of training and validation timesteps
     n_steps_training, n_steps_validation = calc_n_steps(dataset)
     # Split training and validation data
-    X_training, X_validation = split_training_validation(
-        dataset,
-        n_steps_training,
-    )
+    X_training, X_validation = split_training_validation(dataset)
     # Fit pipeline (wrap in Memory Profiler ``profile`` if required)
     if not config.profile:
         # Fit pipeline normally
@@ -83,7 +117,9 @@ def main(config: omegaconf.DictConfig) -> None:
         )
     else:
         # Fit pipeline while profiling fit function with Memory Profiler
-        # ``@profile`` decorator is defined by ``mprof run --python ...``
+        # ``@profile`` decorator is defined when running the code as
+        # ``mprof run --python ./run_experiment.py ...``
+        # You can ignore warnings saying it's not defined
         profile(kp.fit)(
             X_training,
             n_inputs=dataset['n_inputs'],
@@ -177,8 +213,8 @@ def main(config: omegaconf.DictConfig) -> None:
     f_samp = 1 / dataset['t_step']
     f_plot = np.linspace(0, f_samp / 2, 1000)
     bode = []
-    for f in f_plot:
-        bode.append(sigma_bar_G(f, dataset['t_step'], A, B, C))
+    for k in range(f_plot.size):
+        bode.append(sigma_bar_G(f_plot[k], dataset['t_step'], A, B, C))
     mag = np.array(bode)
     mag_db = 20 * np.log10(mag)
     # Save MIMO frequency response
@@ -231,18 +267,27 @@ def main(config: omegaconf.DictConfig) -> None:
                             'from: https://github.com/dschep/ntfy')
 
 
-# --------------------------------------------------------------------------- #
-# Helper functions
-# --------------------------------------------------------------------------- #
+def calc_n_steps(dataset: Dict[str, Any]) -> Tuple[int, int]:
+    """Find smallest number of training and validation timesteps.
 
+    Parameters
+    ----------
+    dataset : Dict[str, Any]
+        Loaded dataset. See module docstring.
 
-def calc_n_steps(dataset: Dict) -> Tuple[int, int]:
-    """Find smallest number of training and validation timesteps."""
+    Returns
+    -------
+    Tuple[int, int]
+        Smallest number of training steps and smallest number of validation
+        steps in the dataset
+    """
     sizes_training = []
     sizes_validation = []
     # Split dataset into episodes
     episodes = pykoop.split_episodes(
-        dataset['X'], episode_feature=dataset['episode_feature'])
+        dataset['X'],
+        episode_feature=dataset['episode_feature'],
+    )
     # Iterate over episodes, logging shape
     for (i, X_i) in episodes:
         if i in dataset['validation_episodes']:
@@ -260,9 +305,19 @@ def calc_n_steps(dataset: Dict) -> Tuple[int, int]:
     return (n_steps_training, n_steps_validation)
 
 
-def split_training_validation(
-        dataset: Dict, n_steps_training: int) -> Tuple[np.ndarray, np.ndarray]:
-    """Split training and validation data."""
+def split_training_validation(dataset: Dict) -> Tuple[np.ndarray, np.ndarray]:
+    """Split training and validation data.
+
+    Parameters
+    ----------
+    dataset : Dict[str, Any]
+        Loaded dataset. See module docstring.
+
+    Returns
+    -------
+    Tuple[np.ndarray, np.ndarray]
+        Split training and validation sets.
+    """
     if dataset['episode_feature']:
         # If there's an episode feature, split the episodes using that
         training_idx = np.where(
@@ -273,27 +328,58 @@ def split_training_validation(
         X_validation = dataset['X'][validation_idx, :]
     else:
         # If there's no episode feature, split the data in half
-        X_training = dataset['X'][:(n_steps_training // 2), :]
-        X_validation = dataset['X'][(n_steps_training // 2):, :]
+        n_s = dataset['X'].shape[0]
+        X_training = dataset['X'][:(n_s // 2), :]
+        X_validation = dataset['X'][(n_s // 2):, :]
     return (X_training, X_validation)
 
 
 def sigma_bar_G(f: float, t_step: float, A: np.ndarray, B: np.ndarray,
-                C: np.ndarray) -> np.ndarray:
-    """Maximum singular value of transfer matrix at a frequency."""
+                C: np.ndarray) -> float:
+    """Maximum singular value of transfer matrix at a frequency.
+
+    Parameters
+    ----------
+    f : float
+        Frequency to evaluate (Hz).
+    t_step : float
+        Sampling timestep (s).
+    A : np.ndarray
+        State space ``A`` matrix.
+    B : np.ndarray
+        State space ``B`` matrix.
+    C : np.ndarray
+        State space ``C`` matrix.
+
+    Returns
+    -------
+    float
+        Maximum singular value of transfer matrix at ``f``.
+    """
     z = np.exp(1j * 2 * np.pi * f * t_step)
     G = C @ linalg.solve((np.diag([z] * A.shape[0]) - A), B)
     sigma_bar_G = linalg.svdvals(G)[0]
     return sigma_bar_G
 
 
-# --------------------------------------------------------------------------- #
-# Plotting functions
-# --------------------------------------------------------------------------- #
-
-
 def plot_timeseries(X_validation: np.ndarray, X_prediction: np.ndarray,
                     score: float) -> plt.Figure:
+    """Plot prediction timeseries.
+
+    Parameters
+    ----------
+    X_validation : np.ndarray
+        True timeseries.
+    X_prediction : np.ndarray
+        Predicted timeseries.
+    score : float
+        Estimator score for title.
+
+    Returns
+    -------
+    plt.Figure
+        Matplotlib figure.
+    """
     # Compute state and input dimensions
     n_state = X_prediction.shape[1] - 1
     n_input = X_validation.shape[1] - n_state - 1
@@ -318,6 +404,22 @@ def plot_timeseries(X_validation: np.ndarray, X_prediction: np.ndarray,
 
 def plot_error(X_validation: np.ndarray, X_prediction: np.ndarray,
                score: float) -> plt.Figure:
+    """Plot prediction error timeseries.
+
+    Parameters
+    ----------
+    X_validation : np.ndarray
+        True timeseries.
+    X_prediction : np.ndarray
+        Predicted timeseries.
+    score : float
+        Estimator score for title.
+
+    Returns
+    -------
+    plt.Figure
+        Matplotlib figure.
+    """
     # Compute state and input dimensions
     n_state = X_prediction.shape[1] - 1
     n_input = X_validation.shape[1] - n_state - 1
@@ -339,8 +441,28 @@ def plot_error(X_validation: np.ndarray, X_prediction: np.ndarray,
     return fig
 
 
-def plot_weights(w_ct: np.ndarray, mag_ct: np.ndarray, w_dt: np.ndarray, mag_dt: np.ndarray, mag_dt_db: np.ndarray) -> plt.Figure:
-    """Plot Hinf weights."""
+def plot_weights(w_ct: np.ndarray, mag_ct: np.ndarray, w_dt: np.ndarray,
+                 mag_dt: np.ndarray, mag_dt_db: np.ndarray) -> plt.Figure:
+    """Plot H-infinity regularizer weights.
+
+    Parameters
+    ----------
+    w_ct : np.ndarray
+        Continuous-time frequency (rad/s).
+    mag_ct : np.ndarray
+        Continuous-time gain (unitless).
+    w_dt : np.ndarray
+        Discrete-time frequency (rad/sample).
+    mag_dt : np.ndarray
+        Discrete-time gain (unitless).
+    mag_dt_db : np.ndarray
+        Discrete-time gain in decibels (dB).
+
+    Returns
+    -------
+    plt.Figure
+        Matplotlib figure.
+    """
     fig, ax = plt.subplots(1, 2, constrained_layout=True)
     ax[0].grid(True, linestyle='--')
     ax[0].semilogx(w_ct, mag_ct)
@@ -361,6 +483,20 @@ def plot_weights(w_ct: np.ndarray, mag_ct: np.ndarray, w_dt: np.ndarray, mag_dt:
 
 
 def plot_eigenvalues(eigv: np.ndarray, eigv_mag: np.ndarray) -> plt.Figure:
+    """Plot eigenvalues of Koopman matrix.
+
+    Parameters
+    ----------
+    eigv : np.ndarray
+        Eigenvalues of Koopman matrix.
+    eigv_mag : np.ndarray
+        Sorted eigenvalue magnitudes of Koopman matrix.
+
+    Returns
+    -------
+    plt.Figure
+        Matplotlib figure.
+    """
     fig = plt.figure(constrained_layout=True)
     gs = fig.add_gridspec(2, 1)
     ax = np.empty((2, ), dtype=object)
@@ -385,18 +521,46 @@ def plot_eigenvalues(eigv: np.ndarray, eigv_mag: np.ndarray) -> plt.Figure:
 
 
 def plot_matshow(U: np.ndarray) -> plt.Figure:
+    """Plot Koopman matrix as an image.
+
+    U : np.ndarray
+        Koopman matrix.
+
+    Returns
+    -------
+    plt.Figure
+        Matplotlib figure.
+    """
     p_theta, p = U.shape
     # Plot Koopman matrix and dividing line between ``A`` and ``B``.
     fig, ax = plt.subplots(constrained_layout=True)
+    # Get max magnitude for colorbar
     mag = np.max(np.abs(U))
     im = ax.matshow(U, vmin=-mag, vmax=mag, cmap='seismic')
+    # Plot line to separate ``A`` and ``B``
     ax.vlines(p_theta - 0.5, -0.5, p_theta - 0.5, color='green')
     fig.colorbar(im, ax=ax)
     return fig
 
 
-def plot_mimo_bode(f_plot: np.ndarray, mag: np.ndarray, mag_db: np.ndarray) -> plt.Figure:
-    """Plot MIMO Bode plot."""
+def plot_mimo_bode(f_plot: np.ndarray, mag: np.ndarray,
+                   mag_db: np.ndarray) -> plt.Figure:
+    """Plot MIMO Bode plot.
+
+    Parameters
+    ----------
+    f_plot : np.ndarray
+        Frequencies to plot (Hz).
+    mag : np.ndarray
+        Gain (unitless).
+    mag_db : np.ndarray
+        Gain in decibels (dB).
+
+    Returns
+    -------
+    plt.Figure
+        Matplotlib figure.
+    """
     fig, ax = plt.subplots(constrained_layout=True)
     ax.grid(True, linestyle='--')
     ax.plot(f_plot, mag, color='C0')
@@ -411,6 +575,18 @@ def plot_mimo_bode(f_plot: np.ndarray, mag: np.ndarray, mag_db: np.ndarray) -> p
 
 
 def plot_convergence(obj_log: np.ndarray) -> plt.Figure:
+    """Plot convergence of an iterative estimator.
+
+    Parameters
+    ----------
+    obj_log : np.ndarray
+        Objective function at each iteration.
+
+    Returns
+    -------
+    plt.Figure
+        Matplotlib figure.
+    """
     fig, ax = plt.subplots(constrained_layout=True)
     ax.grid(True, linestyle='--')
     ax.plot(obj_log)

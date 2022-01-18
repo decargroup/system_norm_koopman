@@ -1,3 +1,22 @@
+# Second-order polynomial lifting functions.
+#
+# First, the data is normalized. Then it is passed through polynomial lifting
+# functions before finally being standardized. The normalization step ensures
+# that no values will grow larger when passed through the polynomial. The
+# standardization step ensures all lifting states will be weighted equally in
+# the regression.
+#
+# This config contains a list of lifting functions that are directly
+# instantiated by Hydra. It is roughly equivalent to the following code:
+#
+# [
+#     ('ma', pykoop.SkLearnLiftingFn(sklearn.preprocesing.MaxAbsScaler())),
+#     ('pl', pykoop.PolynomialLiftingFn(order=2)),
+#     ('ss', pykoop.SkLearnLiftingFn(sklearn.preprocessing.StandardScaler())),
+# ]
+#
+# Details: https://hydra.cc/docs/advanced/instantiate_objects/overview/
+
 lifting_functions:
   -
     - ma

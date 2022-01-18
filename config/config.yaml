@@ -1,8 +1,19 @@
+# Default configuration for Hydra.
+
+# The default lifting functions are specified in ``./config/linear.yaml``,
+# while the default refressor is specified in ``./config/edmd.yaml``
 defaults:
   - lifting_functions: linear
   - regressor: edmd
   - _self_
 
+# Dataset must always be specified explicitly.
 dataset: ???
+
+# True to enable the ``@profile`` decorator, used when running the code as
+# ``mprof run --python ./run_experiment.py ...``
 profile: False
+
+# Set to ``True`` to enable push notifications on job completion with ``ntfy``:
+# https://github.com/dschep/ntfy
 notify: False

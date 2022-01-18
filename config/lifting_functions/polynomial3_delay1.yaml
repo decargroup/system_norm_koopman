@@ -1,3 +1,25 @@
+# Third-order polynomial lifting functions with one time delay.
+#
+# First, the data is normalized. Then it is augmented with its delayed version.
+# Next, it is passed through third-order polynomial lifting functions. Finally,
+# it is standardized. The normalization step ensures that no values will grow
+# larger when passed through the polynomial. The standardization step ensures
+# all lifting states will be weighted equally in the regression. Since the
+# delay happens before the lifting, there will be products of states from
+# different times in the lifted state (e.g. ``x1[k] * x2[k] * x1[k - 1]``).
+#
+# This config contains a list of lifting functions that are directly
+# instantiated by Hydra. It is roughly equivalent to the following code:
+#
+# [
+#     ('ma', pykoop.SkLearnLiftingFn(sklearn.preprocesing.MaxAbsScaler())),
+#     ('dl', pykoop.DelayLiftingFn(n_delays_state=1, n_delays_input=1)),
+#     ('pl', pykoop.PolynomialLiftingFn(order=3)),
+#     ('ss', pykoop.SkLearnLiftingFn(sklearn.preprocessing.StandardScaler())),
+# ]
+#
+# Details: https://hydra.cc/docs/advanced/instantiate_objects/overview/
+
 lifting_functions:
   -
     - ma
