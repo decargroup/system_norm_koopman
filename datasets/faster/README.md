@@ -21,4 +21,4 @@ See the cited paper for more details.[^1]
 [^1]: R. Fortune, C. A. Beltempo, and J. R. Forbes, *System identification and
 feedforward control of a fatigue structural testing rig: The single actuator
 case*, IFAC-PapersOnLine, 52 (2019), pp. 382-387,
-https://doi.org/10.1016/j.ifacol.2019.11.273
+https://doi.org/10.1016/j.ifacol.2019.11.273.
