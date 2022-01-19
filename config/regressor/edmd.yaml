@@ -1,9 +1,9 @@
 # Standard EDMD regressor without regularization.
 #
 # This config specifies a regressor that is directly instantiated by Hydra. It
-# is roughly equivalent to the following code:
+# is roughly equivalent to the following code::
 #
-# pykoop.Edmd(alpha=0)
+#     pykoop.Edmd(alpha=0)
 #
 # Details: https://hydra.cc/docs/advanced/instantiate_objects/overview/
 

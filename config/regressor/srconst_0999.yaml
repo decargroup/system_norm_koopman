@@ -1,5 +1,25 @@
+# EDMD regressor with spectral radius constraint of 0.999.
+#
+# Parameters from ``iter_regressor_base`` are placed inside the ``regressor``
+# section.
+#
+# This config specifies a regressor that is directly instantiated by Hydra. It
+# is roughly equivalent to the following code::
+#
+#     pykoop.lmi_regressors.LmiEdmdSpectralRadiusConstr(
+#         spectral_radius=0.999,
+#         alpha=0,
+#         inv_method='svd',
+#         # ... plus other settings from ``iter_regressor_base``...
+#     )
+#
+# Details: https://hydra.cc/docs/advanced/instantiate_objects/overview/
+
 defaults:
-  - srconst_base
+  - /regressor: iter_regressor_base
 
 regressor:
+  _target_: pykoop.lmi_regressors.LmiEdmdSpectralRadiusConstr
   spectral_radius: 0.999
+  alpha: 0
+  inv_method: 'svd'

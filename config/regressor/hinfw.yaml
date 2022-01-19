@@ -1,3 +1,29 @@
+# Weighted H-infinity EDMD regressor.
+#
+# Parameters from ``iter_regressor_base`` are placed inside the
+# ``hinf_regressor`` subsection.
+#
+# This config specifies a regressor that is directly instantiated by Hydra. It
+# is roughly equivalent to the following code::
+#
+#     pykoop.lmi_regressors.LmiHinfZpkMeta(
+#         hinf_regressor=pykoop.lmi_regressors.LmiDmdcHinfReg(
+#             alpha=1,
+#             ratio=1,
+#             inv_method='svd',
+#             # ... plus other settings from ``iter_regressor_base``...
+#         ),
+#         type='post',
+#         zeros=-0.666667,
+#         poles=-0.999998,
+#         gain=1.0,
+#         discretization='bilinear',
+#         t_step=-1,  # placeholder; set in ``run_experiment.py``.
+#         units='normalized',
+#     )
+#
+# Details: https://hydra.cc/docs/advanced/instantiate_objects/overview/
+
 defaults:
   - /regressor@regressor.hinf_regressor: iter_regressor_base
 

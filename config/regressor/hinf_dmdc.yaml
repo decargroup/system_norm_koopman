@@ -1,3 +1,21 @@
+# H-infinity DMDc regressor.
+#
+# Parameters from ``iter_regressor_base`` are placed inside the ``regressor``
+# section.
+#
+# This config specifies a regressor that is directly instantiated by Hydra. It
+# is roughly equivalent to the following code::
+#
+#     pykoop.lmi_regressors.LmiDmdcHinfReg(
+#         alpha=1,
+#         ratio=1,
+#         tsvd_unshifted=pykoop.Tsvd(truncation='economy'),
+#         tsvd_shifted=pykoop.Tsvd(truncation='unknown_noise'),
+#         # ... plus other settings from ``iter_regressor_base``...
+#     )
+#
+# Details: https://hydra.cc/docs/advanced/instantiate_objects/overview/
+
 defaults:
   - /regressor: iter_regressor_base
 

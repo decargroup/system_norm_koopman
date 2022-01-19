@@ -1,8 +1,0 @@
-defaults:
-  - /regressor: iter_regressor_base
-
-regressor:
-  _target_: pykoop.lmi_regressors.LmiEdmdSpectralRadiusConstr
-  spectral_radius: ???
-  alpha: 0
-  inv_method: 'svd'
