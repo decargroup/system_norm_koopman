@@ -37,6 +37,8 @@ their respective files.
 
 Unless you specify otherwise, the job outputs will be saved in
 ``./outputs/<DATE>/<TIME>/``.
+
+For more information, check out https://hydra.cc/
 """
 
 import datetime

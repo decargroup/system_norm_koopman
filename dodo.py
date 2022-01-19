@@ -1,11 +1,41 @@
-"""Define and automate tasks with ``doit``."""
+"""Define and automate tasks with ``doit``.
+
+This file is ``doit``'s equivalent of a ``Makefile``. When you run any ``doit``
+command, all the task definition functions (functions starting with ``task_*``)
+are run. These functions determine which files tasks produce, which files they
+require, and what actions need to be taken to generate those files. To see a
+list of all available tasks, run::
+
+    $ doit list --all
+
+If you have a powerful enough computer and want to generate all the plots from
+scratch, you can run::
+
+    $ doit
+
+This will run all the ``plot:*`` tasks, along with all the ``experiment:*`` and
+``profile:*`` tasks they depend on. This can take more than 8 hours and 16 GiB
+of RAM. A more reasonable task for a laptop is::
+
+    $ doit plot:faster*
+
+If you built ``./build/hydra_outputs/`` on one machine and want to adjust the
+plots on another machine, you will need to run::
+
+    $ doit reset-dep
+
+This will ensure that ``doit`` will recognize the files you just moved as
+up-to-date.
+
+For more information, check out https://pydoit.org/
+"""
 
 import itertools
 import pathlib
 import pickle
 import re
 import shutil
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, Generator, List, Tuple
 
 import doit
 import matplotlib
@@ -101,7 +131,7 @@ plt.rc('grid', linestyle='--')
 # --------------------------------------------------------------------------- #
 
 
-def task_directory() -> Dict[str, Any]:
+def task_directory() -> Generator[Dict[str, Any], None, None]:
     """Create ``build/`` directory and subdirectories."""
     # Create parent directory
     yield {
@@ -123,7 +153,7 @@ def task_directory() -> Dict[str, Any]:
         }
 
 
-def task_pickle() -> Dict[str, Any]:
+def task_pickle() -> Generator[Dict[str, Any], None, None]:
     """Pickle a dataset for use with Hydra."""
     # FASTER dataset
     yield {
@@ -147,7 +177,7 @@ def task_pickle() -> Dict[str, Any]:
     }
 
 
-def task_experiment() -> Dict[str, Any]:
+def task_experiment() -> Generator[Dict[str, Any], None, None]:
     """Run an experiment with Hydra.
 
     The possible experiments that can be run are decided by the top-level
@@ -187,7 +217,7 @@ def task_experiment() -> Dict[str, Any]:
         }
 
 
-def task_profile() -> Dict[str, Any]:
+def task_profile() -> Generator[Dict[str, Any], None, None]:
     """Profile an experiment with Memory Profiler."""
     dataset = BUILD_DIRS['datasets'].joinpath('soft_robot.pickle')
     lifting_function = CONFIG_DIRS['lifting_functions'].joinpath(
@@ -199,7 +229,8 @@ def task_profile() -> Dict[str, Any]:
         CONFIG_DIRS['regressor'].joinpath('hinf_dmdc.yaml'),
     ]
     for regressor in regressors:
-        exp_name = f'{dataset.stem}__{lifting_function.stem}__{regressor.stem}__max_iter_1'
+        exp_name = (f'{dataset.stem}__{lifting_function.stem}'
+                    f'__{regressor.stem}__max_iter_1')
         exp_dir = BUILD_DIRS['mprof_outputs'].joinpath(exp_name)
         prof_dir = BUILD_DIRS['mprof_outputs'].joinpath(
             f'{regressor.stem}.dat')
@@ -221,7 +252,7 @@ def task_profile() -> Dict[str, Any]:
         }
 
 
-def task_plot() -> Dict[str, Any]:
+def task_plot() -> Generator[Dict[str, Any], None, None]:
     """Plot a figure."""
     for action in [faster_eig, faster_error]:
         yield {
@@ -332,9 +363,9 @@ def task_plot() -> Dict[str, Any]:
 
 @doit.create_after(
     executed='plot',
-    target_regex=f'{BUILD_DIRS["cvd_figures"].resolve()}/.*\.png',
+    target_regex=rf'{BUILD_DIRS["cvd_figures"].resolve()}/.*\.png',
 )
-def task_cvd() -> Dict[str, Any]:
+def task_cvd() -> Generator[Dict[str, Any], None, None]:
     """Simulate color vision deficiency a plot."""
     plots = BUILD_DIRS['figures'].glob('*.png')
     methods = ['protan', 'deutan', 'tritan']
@@ -466,30 +497,30 @@ def faster_error(dependencies: List[pathlib.Path],
     # Plot first state
     ax[0].plot(
         t,
-        unconst['timeseries_1.0']['X_validation'][:n_t, 1] -
-        const1['timeseries_1.0']['X_prediction'][:n_t, 1],
+        unconst['timeseries_1.0']['X_validation'][:n_t, 1]
+        - const1['timeseries_1.0']['X_prediction'][:n_t, 1],
         color=C['1.00'],
         label=r'A.S. constr., $\bar{\rho} = 1.00$',
     )
     ax[0].plot(
         t,
-        unconst['timeseries_1.0']['X_validation'][:n_t, 1] -
-        const099['timeseries_1.0']['X_prediction'][:n_t, 1],
+        unconst['timeseries_1.0']['X_validation'][:n_t, 1]
+        - const099['timeseries_1.0']['X_prediction'][:n_t, 1],
         color=C['0.99'],
         label=r'A.S. constr., $\bar{\rho} = 0.99$',
     )
     # Plot second state
     ax[1].plot(
         t,
-        unconst['timeseries_1.0']['X_validation'][:n_t, 2] -
-        const1['timeseries_1.0']['X_prediction'][:n_t, 2],
+        unconst['timeseries_1.0']['X_validation'][:n_t, 2]
+        - const1['timeseries_1.0']['X_prediction'][:n_t, 2],
         color=C['1.00'],
         label=r'A.S. constr., $\bar{\rho} = 1.00$',
     )
     ax[1].plot(
         t,
-        unconst['timeseries_1.0']['X_validation'][:n_t, 2] -
-        const099['timeseries_1.0']['X_prediction'][:n_t, 2],
+        unconst['timeseries_1.0']['X_validation'][:n_t, 2]
+        - const099['timeseries_1.0']['X_prediction'][:n_t, 2],
         color=C['0.99'],
         label=r'A.S. constr., $\bar{\rho} = 0.99$',
     )
@@ -600,22 +631,22 @@ def soft_robot_error(dependencies: List[pathlib.Path],
     for i in range(2):
         ax[i].plot(
             t,
-            (edmd[series]['X_validation'][:n_t, i + 1] -
-             edmd[series]['X_prediction'][:n_t, i + 1]),
+            (edmd[series]['X_validation'][:n_t, i + 1]
+             - edmd[series]['X_prediction'][:n_t, i + 1]),
             label='Extended DMD',
             color=C['edmd'],
         )
         ax[i].plot(
             t,
-            (edmd[series]['X_validation'][:n_t, i + 1] -
-             srconst[series]['X_prediction'][:n_t, i + 1]),
+            (edmd[series]['X_validation'][:n_t, i + 1]
+             - srconst[series]['X_prediction'][:n_t, i + 1]),
             label='A.S. constraint',
             color=C['srconst'],
         )
         ax[i].plot(
             t,
-            (edmd[series]['X_validation'][:n_t, i + 1] -
-             hinf[series]['X_prediction'][:n_t, i + 1]),
+            (edmd[series]['X_validation'][:n_t, i + 1]
+             - hinf[series]['X_prediction'][:n_t, i + 1]),
             label=f'{HINF} regularizer',
             color=C['hinf'],
         )
@@ -1357,12 +1388,13 @@ def _calc_rmse(loaded_pickle: Dict[str, Any]) -> List[float]:
     return rmses
 
 
-def _open_dat_files(paths: List[str]) -> Dict[str, Tuple[float, float]]:
+def _open_dat_files(
+        paths: List[pathlib.Path]) -> Dict[str, Tuple[float, float]]:
     """Read a ``dat`` file and return the max RAM and execution time.
 
     Parameters
     ----------
-    paths : List[str]
+    paths : List[pathlib.Path]
         List of paths to ``dat`` files generated by Memory Profiler.
 
     Returns
@@ -1408,17 +1440,17 @@ def _open_dat_files(paths: List[str]) -> Dict[str, Tuple[float, float]]:
     return loaded_data
 
 
-def _open_hydra_pickles(paths: List[str]) -> Tuple[str, Dict[str, Any]]:
+def _open_hydra_pickles(paths: List[pathlib.Path]) -> Dict[str, Any]:
     """Open pickles in directory of Hydra log and return dict of data.
 
     Parameters
     ----------
-    paths : List[str]
+    paths : List[pathlib.Path]
         Paths to Hydra pickles to load.
 
     Returns
     -------
-    Tuple[str, Dict[str, Any]]
+    Dict[str, Any]
         Dict of loaded data, where the key is the loaded file name without its
         extension.
     """
