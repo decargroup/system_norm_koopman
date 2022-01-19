@@ -118,13 +118,15 @@ C = {
     'u': OKABE_ITO['bluish green'],
 }
 # Global Matplotlib settings
-plt.rc('figure', dpi=100)
+plt.rc('figure', figsize=(8, 4.5))
 if matplotlib.checkdep_usetex(True):  # Use LaTeX only if available
     plt.rc('text', usetex=True)
     plt.rc('font', family='serif', size=12)
 plt.rc('lines', linewidth=2)
 plt.rc('axes', grid=True)
 plt.rc('grid', linestyle='--')
+# Figure saving options
+SAVEFIG_PARAMS: Dict[str, Any] = {}
 
 # --------------------------------------------------------------------------- #
 # Task definitions
@@ -555,7 +557,7 @@ def faster_error(dependencies: List[pathlib.Path],
     ax[2].set_ylim(-1, 1)
     # Save targets
     for target in targets:
-        fig.savefig(target, bbox_inches='tight', pad_inches=0.1)
+        fig.savefig(target, **SAVEFIG_PARAMS)
 
 
 def faster_eig(dependencies: List[pathlib.Path],
@@ -606,7 +608,7 @@ def faster_eig(dependencies: List[pathlib.Path],
     ax.set_thetalim(-np.pi / 8, np.pi / 8)
     # Save targets
     for target in targets:
-        fig.savefig(target, bbox_inches='tight', pad_inches=0.1)
+        fig.savefig(target, **SAVEFIG_PARAMS)
 
 
 def soft_robot_error(dependencies: List[pathlib.Path],
@@ -711,7 +713,7 @@ def soft_robot_error(dependencies: List[pathlib.Path],
     fig.align_labels()
     # Save targets
     for target in targets:
-        fig.savefig(target, bbox_inches='tight', pad_inches=0.1)
+        fig.savefig(target, **SAVEFIG_PARAMS)
 
 
 def soft_robot_eig(dependencies: List[pathlib.Path],
@@ -842,7 +844,7 @@ def soft_robot_eig(dependencies: List[pathlib.Path],
     ax.set_ylabel(r'$\mathrm{Im}\{\lambda_i\}$', labelpad=25)
     # Save targets
     for target in targets:
-        fig.savefig(target, bbox_inches='tight', pad_inches=0.1)
+        fig.savefig(target, **SAVEFIG_PARAMS)
 
 
 def soft_robot_bode(dependencies: List[pathlib.Path],
@@ -882,7 +884,7 @@ def soft_robot_bode(dependencies: List[pathlib.Path],
     ax.set_ylim(10, 150)
     # Save targets
     for target in targets:
-        fig.savefig(target, bbox_inches='tight', pad_inches=0.1)
+        fig.savefig(target, **SAVEFIG_PARAMS)
 
 
 def soft_robot_svd(dependencies: List[pathlib.Path],
@@ -935,7 +937,7 @@ def soft_robot_svd(dependencies: List[pathlib.Path],
     ax[1].set_ylabel(r'$\sigma_i(\bf{B})$')
     # Save targets
     for target in targets:
-        fig.savefig(target, bbox_inches='tight', pad_inches=0.1)
+        fig.savefig(target, **SAVEFIG_PARAMS)
 
 
 def soft_robot_weights(dependencies: List[pathlib.Path],
@@ -988,7 +990,7 @@ def soft_robot_weights(dependencies: List[pathlib.Path],
     ax2.yaxis.set_major_locator(loc2)
     # Save targets
     for target in targets:
-        fig.savefig(target, bbox_inches='tight', pad_inches=0.1)
+        fig.savefig(target, **SAVEFIG_PARAMS)
 
 
 def soft_robot_scatter_by_method(dependencies: List[pathlib.Path],
@@ -1056,7 +1058,7 @@ def soft_robot_scatter_by_method(dependencies: List[pathlib.Path],
     ax.legend(loc='upper right')
     # Save targets
     for target in targets:
-        fig.savefig(target, bbox_inches='tight', pad_inches=0.1)
+        fig.savefig(target, **SAVEFIG_PARAMS)
 
 
 def soft_robot_scatter_dmdc(dependencies: List[pathlib.Path],
@@ -1124,7 +1126,7 @@ def soft_robot_scatter_dmdc(dependencies: List[pathlib.Path],
     ax.legend(loc='upper right')
     # Save targets
     for target in targets:
-        fig.savefig(target, bbox_inches='tight', pad_inches=0.1)
+        fig.savefig(target, **SAVEFIG_PARAMS)
 
 
 def soft_robot_dmdc_svd(dependencies: List[pathlib.Path],
@@ -1185,7 +1187,7 @@ def soft_robot_dmdc_svd(dependencies: List[pathlib.Path],
     ax[1].set_ylabel(r'$\sigma_i(\bf{B})$')
     # Save targets
     for target in targets:
-        fig.savefig(target, bbox_inches='tight', pad_inches=0.1)
+        fig.savefig(target, **SAVEFIG_PARAMS)
 
 
 def soft_robot_dmdc_bode(dependencies: List[pathlib.Path],
@@ -1230,7 +1232,7 @@ def soft_robot_dmdc_bode(dependencies: List[pathlib.Path],
     ax.set_ylim(10, 150)
     # Save targets
     for target in targets:
-        fig.savefig(target, bbox_inches='tight', pad_inches=0.1)
+        fig.savefig(target, **SAVEFIG_PARAMS)
 
 
 def soft_robot_ram(dependencies: List[pathlib.Path],
@@ -1280,7 +1282,7 @@ def soft_robot_ram(dependencies: List[pathlib.Path],
     ax.set_ylabel('Peak memory consumption (GiB)')
     # Save targets
     for target in targets:
-        fig.savefig(target, bbox_inches='tight', pad_inches=0.1)
+        fig.savefig(target, **SAVEFIG_PARAMS)
 
 
 def soft_robot_exec(dependencies: List[pathlib.Path],
@@ -1330,7 +1332,7 @@ def soft_robot_exec(dependencies: List[pathlib.Path],
     ax.set_ylabel('Execution time per iteration (min)')
     # Save targets
     for target in targets:
-        fig.savefig(target, bbox_inches='tight', pad_inches=0.1)
+        fig.savefig(target, **SAVEFIG_PARAMS)
 
 
 # --------------------------------------------------------------------------- #
