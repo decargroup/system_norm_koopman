@@ -121,6 +121,8 @@ The `experiment:*` and `profile:*` tasks used in the paper are:
 | `profile:srconst_0999` | 00:08:52 |
 | `profile:srconst_0999_dmdc` | 00:02:03 |
 
+Other experiments are listed by `doit list --all`, but they are not used.
+
 If you have a pre-built copy of `build/hydra_outputs/` or other build products,
 `doit` will think they are out-of-date and try to rebuild them. To prevent
 this, run
@@ -158,18 +160,16 @@ The files and folders of the repository are described here:
 | --- | --- |
 | `build/` | Contains all `doit` outputs, including plots. |
 | `config/` | Contains configuration files for running experiments with Hydra. |
-| `datasets/` | Contains raw datasets. |
+| `datasets/` | Contains raw datasets and their documentation. |
 | `dodo.py` | Describes all of `doit`'s behaviour, like a `Makefile`. Also contains plotting code. |
 | `run_experiment.py` | Script used by Hydra to run experiments from configuration files. |
 | `requirements.txt` | Contains required Python packages with versions. |
 | `LICENSE` | Repository license. |
-| `README.md` | This file. |
+| `README.md` | This file! |
 
-| If you want to know about... | Look at... |
-| ---------------------- | ---------- |
-| Implementation details about algorithms presented in the paper | The [`pykoop`](https://github.com/decarsg/pykoop) library |
-| The parameters `pykoop` was called with | `config/` |
-| How `pykoop` was called in the paper | `run_experiment.py` |
-| How the results in the paper were calculated | `run_experiment.py` |
-| How the figures were created | `dodo.py` |
-| Task interdependencies | `dodo.py` |
+If you want to know implementation details about the regressors presented in
+the paper, look at the [`pykoop`](https://github.com/decarsg/pykoop/)
+repository. If you're interested in the specific parameters these regressors
+were called with, check out the `yaml` files in `config/`. Post-processing
+calculations are done in `run_experiment.py`, while plotting code can be found
+in `dodo.py`.
