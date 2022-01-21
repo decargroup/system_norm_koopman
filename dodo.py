@@ -118,7 +118,7 @@ C = {
     'u': OKABE_ITO['bluish green'],
 }
 # Global Matplotlib settings
-plt.rc('figure', figsize=(8, 4.5))
+plt.rc('figure', figsize=(8, 4))
 if matplotlib.checkdep_usetex(True):  # Use LaTeX only if available
     plt.rc('text', usetex=True)
     plt.rc('font', family='serif', size=12)
@@ -1050,7 +1050,7 @@ def soft_robot_scatter_by_method(dependencies: List[pathlib.Path],
     ax.set_xlabel('Regression method')
     ax.set_ylabel('RMS Euclidean error (cm)')
     # Set limits and ticks
-    ax.set_ylim(0, 1.4)
+    ax.set_ylim(0, 1.6)
     ax.set_xlim(-0.5, 3.5)
     ax.set_xticks(x)
     ax.set_xticklabels([errors.columns[i] for i in range(len(x))])
