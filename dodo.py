@@ -535,9 +535,9 @@ def faster_error(dependencies: List[pathlib.Path],
         label='Ground truth',
     )
     # Set labels
-    ax[0].set_ylabel(r'$\Delta x_1(t)$ (force)')
-    ax[1].set_ylabel(r'$\Delta x_2(t)$ (deflection)')
-    ax[2].set_ylabel(r'$u(t)$ (voltage)')
+    ax[0].set_ylabel(r'$\Delta x_1(t)$' '\n(force)')
+    ax[1].set_ylabel(r'$\Delta x_2(t)$' '\n(deflection)')
+    ax[2].set_ylabel(r'$u(t)$' '\n(voltage)')
     ax[2].set_xlabel(r'$t$ (s)')
     # Create legend
     ax[2].legend(
@@ -555,6 +555,9 @@ def faster_error(dependencies: List[pathlib.Path],
     ax[0].set_ylim(-1, 1)
     ax[1].set_ylim(-1, 1)
     ax[2].set_ylim(-1, 1)
+    ax[0].set_yticks([-1, -0.5, 0, 0.5, 1])
+    ax[1].set_yticks([-1, -0.5, 0, 0.5, 1])
+    ax[2].set_yticks([-1, -0.5, 0, 0.5, 1])
     # Save targets
     for target in targets:
         fig.savefig(target, **SAVEFIG_PARAMS)
