@@ -116,17 +116,31 @@ C = {
     '0.99': OKABE_ITO['sky blue'],
     # FASTER input
     'u': OKABE_ITO['bluish green'],
+    # Tikz
+    'tikz_x1': OKABE_ITO['orange'],
+    'tikz_x2': OKABE_ITO['sky blue'],
+    'tikz_u': OKABE_ITO['bluish green'],
+    'tikz_rho': OKABE_ITO['blue'],
+    'tikz_hinf': OKABE_ITO['vermillion'],
+    'tikz_eig': OKABE_ITO['black'],
+    'tikz_bode': OKABE_ITO['black'],
 }
 # Global Matplotlib settings
-plt.rc('figure', figsize=(8, 4))
 if matplotlib.checkdep_usetex(True):  # Use LaTeX only if available
     plt.rc('text', usetex=True)
-    plt.rc('font', family='serif', size=12)
+    plt.rc('font', family='serif', size=14)
 plt.rc('lines', linewidth=2)
 plt.rc('axes', grid=True)
 plt.rc('grid', linestyle='--')
 # Figure saving options
-SAVEFIG_PARAMS: Dict[str, Any] = {}
+SAVEFIG_PARAMS: Dict[str, Any] = {
+    'bbox_inches': 'tight',
+    'pad_inches': 0.1,
+}
+SAVEFIG_TIKZ_PARAMS: Dict[str, Any] = {
+    'bbox_inches': 'tight',
+    'pad_inches': 0.01,
+}
 
 # --------------------------------------------------------------------------- #
 # Task definitions
@@ -256,7 +270,21 @@ def task_profile() -> Generator[Dict[str, Any], None, None]:
 
 def task_plot() -> Generator[Dict[str, Any], None, None]:
     """Plot a figure."""
-    for action in [faster_eig, faster_error]:
+    for action in [
+            faster_eig,
+            faster_error,
+            faster_tikz_time_1,
+            faster_tikz_time_2,
+            faster_tikz_time_3,
+            faster_tikz_lf_1,
+            faster_tikz_lf_2,
+            faster_tikz_lf_3,
+            faster_tikz_comp_1,
+            faster_tikz_comp_2,
+            faster_tikz_comp_3,
+            faster_tikz_eig,
+            faster_tikz_bode,
+    ]:
         yield {
             'name':
             action.__name__,
@@ -276,6 +304,7 @@ def task_plot() -> Generator[Dict[str, Any], None, None]:
             ],
             'clean':
             True,
+            'uptodate': [False],
         }
     for action in [
             soft_robot_error,
@@ -310,6 +339,7 @@ def task_plot() -> Generator[Dict[str, Any], None, None]:
             ],
             'clean':
             True,
+            'uptodate': [False],
         }
     for action in [
             soft_robot_dmdc_svd,
@@ -341,6 +371,7 @@ def task_plot() -> Generator[Dict[str, Any], None, None]:
             ],
             'clean':
             True,
+            'uptodate': [False],
         }
     for action in [soft_robot_ram, soft_robot_exec]:
         yield {
@@ -360,6 +391,7 @@ def task_plot() -> Generator[Dict[str, Any], None, None]:
             ],
             'clean':
             True,
+            'uptodate': [False],
         }
 
 
@@ -383,6 +415,7 @@ def task_cvd() -> Generator[Dict[str, Any], None, None]:
             'task_dep': ['directory:build/cvd_figures'],
             'targets': [target],
             'clean': True,
+            'uptodate': [False],
         }
 
 
@@ -495,7 +528,13 @@ def faster_error(dependencies: List[pathlib.Path],
     n_t = int(10 / t_step)
     t = np.arange(n_t) * t_step
     # Create figure
-    fig, ax = plt.subplots(3, 1, constrained_layout=True, sharex=True)
+    fig, ax = plt.subplots(
+        3,
+        1,
+        constrained_layout=True,
+        sharex=True,
+        figsize=(5, 5),
+    )
     # Plot first state
     ax[0].plot(
         t,
@@ -535,12 +574,15 @@ def faster_error(dependencies: List[pathlib.Path],
         label='Ground truth',
     )
     # Set labels
-    ax[0].set_ylabel(r'$\Delta x_1(t)$' '\n(force)')
-    ax[1].set_ylabel(r'$\Delta x_2(t)$' '\n(deflection)')
-    ax[2].set_ylabel(r'$u(t)$' '\n(voltage)')
+    ax[0].set_ylabel(r'$\Delta x_1(t)$'
+                     '\n(force)')
+    ax[1].set_ylabel(r'$\Delta x_2(t)$'
+                     '\n(deflection)')
+    ax[2].set_ylabel(r'$u(t)$'
+                     '\n(voltage)')
     ax[2].set_xlabel(r'$t$ (s)')
     # Create legend
-    ax[2].legend(
+    fig.legend(
         ax[0].get_lines() + ax[2].get_lines(),
         [
             r'A.S. constr., $\bar{\rho} = 1.00$',
@@ -549,7 +591,7 @@ def faster_error(dependencies: List[pathlib.Path],
         ],
         loc='upper center',
         ncol=3,
-        bbox_to_anchor=(0.5, -0.5),
+        bbox_to_anchor=(0.5, 0),
     )
     # Set axis limits
     ax[0].set_ylim(-1, 1)
@@ -571,7 +613,7 @@ def faster_eig(dependencies: List[pathlib.Path],
     const1 = deps['faster__polynomial2__srconst_1']
     const099 = deps['faster__polynomial2__srconst_099']
     # Create figure
-    fig = plt.figure(constrained_layout=True)
+    fig = plt.figure(constrained_layout=True, figsize=(5, 5))
     ax = fig.add_subplot(projection='polar')
     # Set common scatter plot settings
     style = {
@@ -614,6 +656,379 @@ def faster_eig(dependencies: List[pathlib.Path],
         fig.savefig(target, **SAVEFIG_PARAMS)
 
 
+def faster_tikz_time_1(dependencies: List[pathlib.Path],
+                       targets: List[pathlib.Path]) -> None:
+    """FASTER Tikz time plot."""
+    deps = _open_hydra_pickles(dependencies)
+    unconst = deps['faster__polynomial2__edmd']
+    const1 = deps['faster__polynomial2__srconst_1']
+    const099 = deps['faster__polynomial2__srconst_099']
+    # Compute time array
+    t_step = 1 / unconst['bode']['f_samp']
+    n_t = int(10 / t_step)
+    t = np.arange(n_t) * t_step
+    # Create figure
+    fig, ax = plt.subplots(constrained_layout=True, figsize=(3, 3))
+    # Plot first state
+    ax.plot(
+        t,
+        unconst['timeseries_1.0']['X_validation'][:n_t, 1],
+        color=C['tikz_x1'],
+        linewidth=3,
+    )
+    ax.grid(False)
+    ax.set_xlabel(r'$t$')
+    ax.set_ylabel(r'$x_1(t)$')
+    ax.set_xticks([])
+    ax.set_yticks([])
+    # Save targets
+    for target in targets:
+        fig.savefig(target, **SAVEFIG_TIKZ_PARAMS)
+
+
+def faster_tikz_time_2(dependencies: List[pathlib.Path],
+                       targets: List[pathlib.Path]) -> None:
+    """FASTER Tikz time plot."""
+    deps = _open_hydra_pickles(dependencies)
+    unconst = deps['faster__polynomial2__edmd']
+    const1 = deps['faster__polynomial2__srconst_1']
+    const099 = deps['faster__polynomial2__srconst_099']
+    # Compute time array
+    t_step = 1 / unconst['bode']['f_samp']
+    n_t = int(10 / t_step)
+    t = np.arange(n_t) * t_step
+    # Create figure
+    fig, ax = plt.subplots(constrained_layout=True, figsize=(3, 3))
+    # Plot first state
+    ax.plot(
+        t,
+        unconst['timeseries_1.0']['X_validation'][:n_t, 2],
+        color=C['tikz_x2'],
+        linewidth=3,
+    )
+    ax.grid(False)
+    ax.set_xlabel(r'$t$')
+    ax.set_ylabel(r'$x_2(t)$')
+    ax.set_xticks([])
+    ax.set_yticks([])
+    # Save targets
+    for target in targets:
+        fig.savefig(target, **SAVEFIG_TIKZ_PARAMS)
+
+
+def faster_tikz_time_3(dependencies: List[pathlib.Path],
+                       targets: List[pathlib.Path]) -> None:
+    """FASTER Tikz time plot."""
+    deps = _open_hydra_pickles(dependencies)
+    unconst = deps['faster__polynomial2__edmd']
+    const1 = deps['faster__polynomial2__srconst_1']
+    const099 = deps['faster__polynomial2__srconst_099']
+    # Compute time array
+    t_step = 1 / unconst['bode']['f_samp']
+    n_t = int(10 / t_step)
+    t = np.arange(n_t) * t_step
+    # Create figure
+    fig, ax = plt.subplots(constrained_layout=True, figsize=(3, 3))
+    # Plot first state
+    ax.plot(
+        t,
+        unconst['timeseries_1.0']['X_validation'][:n_t, 3],
+        color=C['tikz_u'],
+        linewidth=3,
+    )
+    ax.grid(False)
+    ax.set_xlabel(r'$t$')
+    ax.set_ylabel(r'$u(t)$')
+    ax.set_xticks([])
+    ax.set_yticks([])
+    # Save targets
+    for target in targets:
+        fig.savefig(target, **SAVEFIG_TIKZ_PARAMS)
+
+
+def faster_tikz_lf_1(dependencies: List[pathlib.Path],
+                     targets: List[pathlib.Path]) -> None:
+    """FASTER Tikz lifting function plot."""
+    deps = _open_hydra_pickles(dependencies)
+    unconst = deps['faster__polynomial2__edmd']
+    const1 = deps['faster__polynomial2__srconst_1']
+    const099 = deps['faster__polynomial2__srconst_099']
+    # Create figure
+    fig = plt.figure(constrained_layout=True, figsize=(3, 3))
+    ax = fig.add_subplot(projection='3d')
+    x, y = np.meshgrid(
+        np.linspace(-1, 1, 20),
+        np.linspace(-1, 1, 20),
+    )
+    z = y
+    ax.plot_surface(x, y, z, cmap='viridis')
+    ax.set_xlabel(r'$x_1$')
+    ax.set_ylabel(r'$x_2$')
+    ax.set_zlabel(r'$\psi_2(x_1, x_2, u)$')
+    ax.set_xticks([])
+    ax.set_yticks([])
+    ax.set_zticks([])
+    ax.set_xlim([-1.1, 1.1])
+    ax.set_ylim([-1.1, 1.1])
+    ax.set_zlim([-1.1, 1.1])
+    # Save targets
+    for target in targets:
+        fig.savefig(target, **SAVEFIG_TIKZ_PARAMS)
+
+
+def faster_tikz_lf_2(dependencies: List[pathlib.Path],
+                     targets: List[pathlib.Path]) -> None:
+    """FASTER Tikz lifting function plot."""
+    deps = _open_hydra_pickles(dependencies)
+    unconst = deps['faster__polynomial2__edmd']
+    const1 = deps['faster__polynomial2__srconst_1']
+    const099 = deps['faster__polynomial2__srconst_099']
+    # Create figure
+    fig = plt.figure(constrained_layout=True, figsize=(3, 3))
+    ax = fig.add_subplot(projection='3d')
+    x, y = np.meshgrid(
+        np.linspace(-1, 1, 20),
+        np.linspace(-1, 1, 20),
+    )
+    z = x**2
+    ax.plot_surface(x, y, z, cmap='viridis')
+    ax.set_xlabel(r'$x_1$')
+    ax.set_ylabel(r'$x_2$')
+    ax.set_zlabel(r'$\psi_3(x_1, x_2, u)$')
+    ax.set_xticks([])
+    ax.set_yticks([])
+    ax.set_zticks([])
+    ax.set_xlim([-1.1, 1.1])
+    ax.set_ylim([-1.1, 1.1])
+    ax.set_zlim([-1.1, 1.1])
+    # Save targets
+    for target in targets:
+        fig.savefig(target, **SAVEFIG_TIKZ_PARAMS)
+
+
+def faster_tikz_lf_3(dependencies: List[pathlib.Path],
+                     targets: List[pathlib.Path]) -> None:
+    """FASTER Tikz lifting function plot."""
+    deps = _open_hydra_pickles(dependencies)
+    unconst = deps['faster__polynomial2__edmd']
+    const1 = deps['faster__polynomial2__srconst_1']
+    const099 = deps['faster__polynomial2__srconst_099']
+    # Create figure
+    fig = plt.figure(constrained_layout=True, figsize=(3, 3))
+    ax = fig.add_subplot(projection='3d')
+    x, y = np.meshgrid(
+        np.linspace(-1, 1, 20),
+        np.linspace(-1, 1, 20),
+    )
+    z = x * y
+    ax.plot_surface(x, y, z, cmap='viridis')
+    ax.set_xlabel(r'$x_1$')
+    ax.set_ylabel(r'$x_2$')
+    ax.set_zlabel(r'$\psi_4(x_1, x_2, u)$')
+    ax.set_xticks([])
+    ax.set_yticks([])
+    ax.set_zticks([])
+    ax.set_xlim([-1.1, 1.1])
+    ax.set_ylim([-1.1, 1.1])
+    ax.set_zlim([-1.1, 1.1])
+    # Save targets
+    for target in targets:
+        fig.savefig(target, **SAVEFIG_TIKZ_PARAMS)
+
+
+def faster_tikz_comp_1(dependencies: List[pathlib.Path],
+                       targets: List[pathlib.Path]) -> None:
+    """FASTER Tikz comparison plot."""
+    deps = _open_hydra_pickles(dependencies)
+    unconst = deps['faster__polynomial2__edmd']
+    const1 = deps['faster__polynomial2__srconst_1']
+    const099 = deps['faster__polynomial2__srconst_099']
+    # Compute time array
+    t_step = 1 / unconst['bode']['f_samp']
+    n_t = int(10 / t_step)
+    t = np.arange(n_t) * t_step
+    # Create figure
+    fig, ax = plt.subplots(constrained_layout=True, figsize=(3, 3))
+    # Plot first state
+    ax.plot(
+        t,
+        unconst['timeseries_1.0']['X_validation'][n_t:(2 * n_t), 1],
+        color=C['tikz_x1'],
+        linewidth=3,
+    )
+    ax.plot(
+        t,
+        const099['timeseries_1.0']['X_prediction'][n_t:(2 * n_t), 1],
+        color=C['tikz_x1'],
+        linestyle='--',
+        linewidth=3,
+    )
+    ax.grid(False)
+    ax.set_xlabel(r'$t$')
+    ax.set_ylabel(r'$x_1(t)$')
+    ax.set_xticks([])
+    ax.set_yticks([])
+    # Save targets
+    for target in targets:
+        fig.savefig(target, **SAVEFIG_TIKZ_PARAMS)
+
+
+def faster_tikz_comp_2(dependencies: List[pathlib.Path],
+                       targets: List[pathlib.Path]) -> None:
+    """FASTER Tikz comparison plot."""
+    deps = _open_hydra_pickles(dependencies)
+    unconst = deps['faster__polynomial2__edmd']
+    const1 = deps['faster__polynomial2__srconst_1']
+    const099 = deps['faster__polynomial2__srconst_099']
+    # Compute time array
+    t_step = 1 / unconst['bode']['f_samp']
+    n_t = int(10 / t_step)
+    t = np.arange(n_t) * t_step
+    # Create figure
+    fig, ax = plt.subplots(constrained_layout=True, figsize=(3, 3))
+    # Plot first state
+    ax.plot(
+        t,
+        unconst['timeseries_1.0']['X_validation'][n_t:(2 * n_t), 2],
+        color=C['tikz_x2'],
+        linewidth=3,
+    )
+    ax.plot(
+        t,
+        const099['timeseries_1.0']['X_prediction'][n_t:(2 * n_t), 2],
+        color=C['tikz_x2'],
+        linestyle='--',
+        linewidth=3,
+    )
+    ax.grid(False)
+    ax.set_xlabel(r'$t$')
+    ax.set_ylabel(r'$x_2(t)$')
+    ax.set_xticks([])
+    ax.set_yticks([])
+    # Save targets
+    for target in targets:
+        fig.savefig(target, **SAVEFIG_TIKZ_PARAMS)
+
+
+def faster_tikz_comp_3(dependencies: List[pathlib.Path],
+                       targets: List[pathlib.Path]) -> None:
+    """FASTER Tikz comparison plot."""
+    deps = _open_hydra_pickles(dependencies)
+    unconst = deps['faster__polynomial2__edmd']
+    const1 = deps['faster__polynomial2__srconst_1']
+    const099 = deps['faster__polynomial2__srconst_099']
+    # Compute time array
+    t_step = 1 / unconst['bode']['f_samp']
+    n_t = int(10 / t_step)
+    t = np.arange(n_t) * t_step
+    # Create figure
+    fig, ax = plt.subplots(constrained_layout=True, figsize=(3, 3))
+    # Plot first state
+    ax.plot(
+        t,
+        unconst['timeseries_1.0']['X_validation'][n_t:(2 * n_t), 3],
+        color=C['tikz_u'],
+        linewidth=3,
+    )
+    ax.grid(False)
+    ax.set_xlabel(r'$t$')
+    ax.set_ylabel(r'$u(t)$')
+    ax.set_xticks([])
+    ax.set_yticks([])
+    # Save targets
+    for target in targets:
+        fig.savefig(target, **SAVEFIG_TIKZ_PARAMS)
+
+
+def faster_tikz_eig(dependencies: List[pathlib.Path],
+                    targets: List[pathlib.Path]) -> None:
+    """Save FASTER Tikz eigenvalue plot."""
+    deps = _open_hydra_pickles(dependencies)
+    unconst = deps['faster__polynomial2__edmd']
+    const1 = deps['faster__polynomial2__srconst_1']
+    const099 = deps['faster__polynomial2__srconst_099']
+    # Create figure
+    fig = plt.figure(constrained_layout=True, figsize=(3, 3))
+    ax = fig.add_subplot(projection='polar')
+    # Set common scatter plot settings
+    style = {
+        's': 50 * 1.5,
+        'edgecolors': 'w',
+        'linewidth': 0.25 * 1.5,
+    }
+    # Plot eigenvalue constraints
+    th = np.linspace(0, 2 * np.pi)
+    ax.plot(
+        th,
+        0.99 * np.ones(th.shape),
+        '--',
+        color=C['tikz_rho'],
+        linewidth=1.5,
+        zorder=2,
+    )
+    # Plot eigenvalues
+    ax.scatter(
+        np.angle(const099['eigenvalues']['eigv']),
+        np.absolute(const099['eigenvalues']['eigv']),
+        color=C['tikz_eig'],
+        marker='o',
+        zorder=2,
+        **style,
+    )
+    # Set axis labels
+    ax.set_yticks([0, 0.33, 0.66, 1])
+    ax.set_yticklabels([])
+    ax.set_rlim([0, 1.05])
+    ax.text(
+        x=np.pi / 4 - np.pi / 16,
+        y=0.75,
+        s=r'$\bar{\rho}$',
+        color=C['tikz_rho'],
+        fontsize='x-large',
+    )
+    # Save targets
+    for target in targets:
+        fig.savefig(target, **SAVEFIG_PARAMS)
+
+
+def faster_tikz_bode(dependencies: List[pathlib.Path],
+                     targets: List[pathlib.Path]) -> None:
+    """Save FASTER Tikz eigenvalue plot."""
+    deps = _open_hydra_pickles(dependencies)
+    unconst = deps['faster__polynomial2__edmd']
+    const1 = deps['faster__polynomial2__srconst_1']
+    const099 = deps['faster__polynomial2__srconst_099']
+    # Create figure
+    fig, ax = plt.subplots(constrained_layout=True, figsize=(3, 3))
+    ax.semilogx(
+        const099['bode']['f_plot'],
+        const099['bode']['mag_db'],
+        subs=[-1],
+        color=C['tikz_bode'],
+    )
+    peak = np.max(const099['bode']['mag_db'])
+    ax.axhline(
+        y=peak,
+        ls='--',
+        color=C['tikz_hinf'],
+    )
+    ax.text(
+        x=10,
+        y=peak - 5,
+        s=r'$\|\mathcal{G}\|_\infty$',
+        color=C['tikz_hinf'],
+        fontsize='x-large',
+    )
+    # Set axis labels and limits
+    ax.set_xlabel(r'$f$')
+    ax.set_ylabel(r'$\bar{\sigma}\left({\bf G}(e^{j \theta})\right)$')
+    ax.set_xticks([])
+    ax.set_yticks([])
+    # Save targets
+    for target in targets:
+        fig.savefig(target, **SAVEFIG_PARAMS)
+
+
 def soft_robot_error(dependencies: List[pathlib.Path],
                      targets: List[pathlib.Path]) -> None:
     """Save soft robot timeseries plot."""
@@ -631,7 +1046,13 @@ def soft_robot_error(dependencies: List[pathlib.Path],
     # Get state dimension
     n_x = edmd[series]['X_prediction'].shape[1] - 1
     # Create figure
-    fig, ax = plt.subplots(3, 1, constrained_layout=True, sharex=True)
+    fig, ax = plt.subplots(
+        3,
+        1,
+        constrained_layout=True,
+        sharex=True,
+        figsize=(5, 5),
+    )
     # Plot errors
     for i in range(2):
         ax[i].plot(
@@ -691,7 +1112,7 @@ def soft_robot_error(dependencies: List[pathlib.Path],
     ax[1].set_yticks([-4, -2, 0, 2, 4])
     ax[2].set_yticks([0, 2, 4, 6, 8])
     # Create legend
-    ax[2].legend(
+    fig.legend(
         [
             ax[1].get_lines()[0],
             ax[2].get_lines()[0],
@@ -710,7 +1131,7 @@ def soft_robot_error(dependencies: List[pathlib.Path],
         ],
         loc='upper center',
         ncol=3,
-        bbox_to_anchor=(0.5, -0.5),
+        bbox_to_anchor=(0.5, 0),
     )
     # Align labels
     fig.align_labels()
@@ -728,7 +1149,7 @@ def soft_robot_eig(dependencies: List[pathlib.Path],
     hinf = deps['soft_robot__polynomial3_delay1__hinf']
     hinfw = deps['soft_robot__polynomial3_delay1__hinfw']
     # Create figure
-    fig = plt.figure(constrained_layout=True)
+    fig = plt.figure(constrained_layout=True, figsize=(10, 5))
     ax = fig.add_subplot(projection='polar')
     # Plot unit circle
     th = np.linspace(0, 2 * np.pi)
@@ -859,7 +1280,7 @@ def soft_robot_bode(dependencies: List[pathlib.Path],
     hinf = deps['soft_robot__polynomial3_delay1__hinf']
     hinfw = deps['soft_robot__polynomial3_delay1__hinfw']
     # Create figure
-    fig, ax = plt.subplots(constrained_layout=True)
+    fig, ax = plt.subplots(constrained_layout=True, figsize=(5, 5))
     # Plot magnitude response
     ax.semilogx(
         edmd['bode']['f_plot'],
@@ -904,7 +1325,13 @@ def soft_robot_svd(dependencies: List[pathlib.Path],
     sv_A_hinf, sv_B_hinf = _calc_sv(hinf['matshow']['U'])
     sv_A_hinfw, sv_B_hinfw = _calc_sv(hinfw['matshow']['U'])
     # Create figure
-    fig, ax = plt.subplots(1, 2, constrained_layout=True, sharey=True)
+    fig, ax = plt.subplots(
+        1,
+        2,
+        constrained_layout=True,
+        sharey=True,
+        figsize=(10, 5),
+    )
     # Plot singular values of ``A``
     ax[0].semilogy(sv_A_edmd, marker='.', color=C['edmd'])
     ax[0].semilogy(sv_A_srconst, marker='.', color=C['srconst'])
@@ -950,7 +1377,7 @@ def soft_robot_weights(dependencies: List[pathlib.Path],
     hinf = deps['soft_robot__polynomial3_delay1__hinf']
     hinfw = deps['soft_robot__polynomial3_delay1__hinfw']
     # Create figure
-    fig, ax1 = plt.subplots(constrained_layout=True)
+    fig, ax1 = plt.subplots(constrained_layout=True, figsize=(5, 5))
     # Create right axis
     ax2 = ax1.twinx()
     # Plot frequency responses
@@ -963,7 +1390,7 @@ def soft_robot_weights(dependencies: List[pathlib.Path],
     ax1.semilogx(
         hinfw['bode']['f_plot'],
         hinfw['bode']['mag_db'],
-        label=f'Weighted {HINF} reg.',
+        label=f'W. {HINF} reg.',
         color=C['hinfw'],
     )
     ax2.semilogx(
@@ -977,9 +1404,6 @@ def soft_robot_weights(dependencies: List[pathlib.Path],
     ax1.set_xlabel('$f$ (Hz)')
     ax1.set_ylabel(r'$\bar{\sigma}\left({\bf G}(e^{j \theta})\right)$ (dB)')
     ax2.set_ylabel(r'Weight magnitude (dB)')
-    # Add legends
-    ax1.legend(loc='upper left', title=r'\textbf{Left axis}')
-    ax2.legend(loc='upper right', title=r'\textbf{Right axis}')
     # Set axis limits
     b1 = 14  # Lower limit of right axis
     b2 = -4  # Lower limit of left axis
@@ -991,6 +1415,23 @@ def soft_robot_weights(dependencies: List[pathlib.Path],
     loc2 = matplotlib.ticker.LinearLocator(numticks=((n // 2) + 1))
     ax1.yaxis.set_major_locator(loc1)
     ax2.yaxis.set_major_locator(loc2)
+    # Add legends
+    # https://stackoverflow.com/questions/25829736/matplotlib-how-to-adjust-zorder-of-second-legend
+    handles1, labels1 = ax1.get_legend_handles_labels()
+    handles2, labels2 = ax2.get_legend_handles_labels()
+    first_legend = plt.legend(
+        handles1,
+        labels1,
+        loc='upper left',
+        title=r'\textbf{Left axis}',
+    )
+    ax2.add_artist(first_legend)
+    plt.legend(
+        handles2,
+        labels2,
+        loc='upper right',
+        title=r'\textbf{Right axis}',
+    )
     # Save targets
     for target in targets:
         fig.savefig(target, **SAVEFIG_PARAMS)
@@ -1006,15 +1447,15 @@ def soft_robot_scatter_by_method(dependencies: List[pathlib.Path],
     hinfw = deps['soft_robot__polynomial3_delay1__hinfw']
     # Construct dataframe with RMS errors
     errors = pandas.DataFrame({
-        'Extended DMD': _calc_rmse(edmd),
-        'A.S. constraint': _calc_rmse(srconst),
-        f'{HINF} regularizer': _calc_rmse(hinf),
-        f'Weighted {HINF} reg.': _calc_rmse(hinfw),
+        'EDMD': _calc_rmse(edmd),
+        'A.S. constr.': _calc_rmse(srconst),
+        f'{HINF} reg.': _calc_rmse(hinf),
+        f'W. {HINF} reg.': _calc_rmse(hinfw),
     })
     means = errors.mean()
     std = errors.std()
     # Create figure
-    fig, ax = plt.subplots(constrained_layout=True)
+    fig, ax = plt.subplots(constrained_layout=True, figsize=(5, 5))
     # Column colors
     c = [C['edmd'], C['srconst'], C['hinf'], C['hinfw']]
     # Mean and shifted tick locations
@@ -1082,7 +1523,7 @@ def soft_robot_scatter_dmdc(dependencies: List[pathlib.Path],
     means = errors.mean()
     std = errors.std()
     # Create figure
-    fig, ax = plt.subplots(constrained_layout=True)
+    fig, ax = plt.subplots(constrained_layout=True, figsize=(5, 5))
     # Column colors
     c = [C['srconst'], C['srconst_dmdc'], C['hinf'], C['hinf_dmdc']]
     # Mean and shifted tick locations
@@ -1147,7 +1588,13 @@ def soft_robot_dmdc_svd(dependencies: List[pathlib.Path],
     sv_A_srconst_dmdc, sv_B_srconst_dmdc = _calc_sv(
         srconst_dmdc['matshow']['U'])
     # Create figure
-    fig, ax = plt.subplots(1, 2, constrained_layout=True, sharey=True)
+    fig, ax = plt.subplots(
+        1,
+        2,
+        constrained_layout=True,
+        sharey=True,
+        figsize=(10, 5),
+    )
     # Plot singular values of ``A``
     ax[0].semilogy(sv_A_srconst, marker='.', color=C['srconst'])
     ax[0].semilogy(sv_A_hinf, marker='.', color=C['hinf'])
@@ -1202,7 +1649,7 @@ def soft_robot_dmdc_bode(dependencies: List[pathlib.Path],
     hinf = deps['soft_robot__polynomial3_delay1__hinf']
     hinf_dmdc = deps['soft_robot__polynomial3_delay1__hinf_dmdc']
     # Create figure
-    fig, ax = plt.subplots(constrained_layout=True)
+    fig, ax = plt.subplots(constrained_layout=True, figsize=(5, 5))
     ax.semilogx(
         srconst['bode']['f_plot'],
         srconst['bode']['mag_db'],
@@ -1262,7 +1709,7 @@ def soft_robot_ram(dependencies: List[pathlib.Path],
         ],
     })
     # Plot dataframe
-    fig, ax = plt.subplots(constrained_layout=True)
+    fig, ax = plt.subplots(constrained_layout=True, figsize=(5, 5))
     stats.plot(
         x='label',
         y='ram',
@@ -1312,7 +1759,7 @@ def soft_robot_exec(dependencies: List[pathlib.Path],
         ],
     })
     # Plot dataframe
-    fig, ax = plt.subplots(constrained_layout=True)
+    fig, ax = plt.subplots(constrained_layout=True, figsize=(5, 5))
     stats.plot(
         x='label',
         y='time',
