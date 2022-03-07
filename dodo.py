@@ -37,6 +37,7 @@ import re
 import shutil
 from typing import Any, Dict, Generator, List, Tuple
 
+import cmcrameri
 import doit
 import matplotlib
 import numpy as np
@@ -122,13 +123,16 @@ C = {
     'tikz_u': OKABE_ITO['bluish green'],
     'tikz_rho': OKABE_ITO['blue'],
     'tikz_hinf': OKABE_ITO['vermillion'],
-    'tikz_eig': OKABE_ITO['black'],
-    'tikz_bode': OKABE_ITO['black'],
+    # 'tikz_eig': OKABE_ITO['black'],
+    # 'tikz_bode': OKABE_ITO['black'],
+    'tikz_eig': cmcrameri.cm.batlow(0),
+    'tikz_bode': cmcrameri.cm.batlow(0),
 }
 # Global Matplotlib settings
 if matplotlib.checkdep_usetex(True):  # Use LaTeX only if available
     plt.rc('text', usetex=True)
-    plt.rc('font', family='serif', size=14)
+    plt.rc('font', family='serif', size=16)
+    plt.rc('text.latex', preamble=r'\usepackage{amsmath}')
 plt.rc('lines', linewidth=2)
 plt.rc('axes', grid=True)
 plt.rc('grid', linestyle='--')
@@ -273,15 +277,27 @@ def task_plot() -> Generator[Dict[str, Any], None, None]:
     for action in [
             faster_eig,
             faster_error,
-            faster_tikz_time_1,
-            faster_tikz_time_2,
-            faster_tikz_time_3,
+            faster_tikz_time_1a,
+            faster_tikz_time_1b,
+            faster_tikz_time_1c,
+            faster_tikz_time_2a,
+            faster_tikz_time_2b,
+            faster_tikz_time_2c,
+            faster_tikz_time_3a,
+            faster_tikz_time_3b,
+            faster_tikz_time_3c,
             faster_tikz_lf_1,
             faster_tikz_lf_2,
             faster_tikz_lf_3,
-            faster_tikz_comp_1,
-            faster_tikz_comp_2,
-            faster_tikz_comp_3,
+            faster_tikz_lifted_1a,
+            faster_tikz_lifted_1b,
+            faster_tikz_lifted_1c,
+            faster_tikz_lifted_2a,
+            faster_tikz_lifted_2b,
+            faster_tikz_lifted_2c,
+            faster_tikz_lifted_3a,
+            faster_tikz_lifted_3b,
+            faster_tikz_lifted_3c,
             faster_tikz_eig,
             faster_tikz_bode,
     ]:
@@ -651,379 +667,6 @@ def faster_eig(dependencies: List[pathlib.Path],
     # Set axis limits and ticks
     ax.set_xticks([d * np.pi / 180 for d in [-20, -10, 0, 10, 20]])
     ax.set_thetalim(-np.pi / 8, np.pi / 8)
-    # Save targets
-    for target in targets:
-        fig.savefig(target, **SAVEFIG_PARAMS)
-
-
-def faster_tikz_time_1(dependencies: List[pathlib.Path],
-                       targets: List[pathlib.Path]) -> None:
-    """FASTER Tikz time plot."""
-    deps = _open_hydra_pickles(dependencies)
-    unconst = deps['faster__polynomial2__edmd']
-    const1 = deps['faster__polynomial2__srconst_1']
-    const099 = deps['faster__polynomial2__srconst_099']
-    # Compute time array
-    t_step = 1 / unconst['bode']['f_samp']
-    n_t = int(10 / t_step)
-    t = np.arange(n_t) * t_step
-    # Create figure
-    fig, ax = plt.subplots(constrained_layout=True, figsize=(3, 3))
-    # Plot first state
-    ax.plot(
-        t,
-        unconst['timeseries_1.0']['X_validation'][:n_t, 1],
-        color=C['tikz_x1'],
-        linewidth=3,
-    )
-    ax.grid(False)
-    ax.set_xlabel(r'$t$')
-    ax.set_ylabel(r'$x_1(t)$')
-    ax.set_xticks([])
-    ax.set_yticks([])
-    # Save targets
-    for target in targets:
-        fig.savefig(target, **SAVEFIG_TIKZ_PARAMS)
-
-
-def faster_tikz_time_2(dependencies: List[pathlib.Path],
-                       targets: List[pathlib.Path]) -> None:
-    """FASTER Tikz time plot."""
-    deps = _open_hydra_pickles(dependencies)
-    unconst = deps['faster__polynomial2__edmd']
-    const1 = deps['faster__polynomial2__srconst_1']
-    const099 = deps['faster__polynomial2__srconst_099']
-    # Compute time array
-    t_step = 1 / unconst['bode']['f_samp']
-    n_t = int(10 / t_step)
-    t = np.arange(n_t) * t_step
-    # Create figure
-    fig, ax = plt.subplots(constrained_layout=True, figsize=(3, 3))
-    # Plot first state
-    ax.plot(
-        t,
-        unconst['timeseries_1.0']['X_validation'][:n_t, 2],
-        color=C['tikz_x2'],
-        linewidth=3,
-    )
-    ax.grid(False)
-    ax.set_xlabel(r'$t$')
-    ax.set_ylabel(r'$x_2(t)$')
-    ax.set_xticks([])
-    ax.set_yticks([])
-    # Save targets
-    for target in targets:
-        fig.savefig(target, **SAVEFIG_TIKZ_PARAMS)
-
-
-def faster_tikz_time_3(dependencies: List[pathlib.Path],
-                       targets: List[pathlib.Path]) -> None:
-    """FASTER Tikz time plot."""
-    deps = _open_hydra_pickles(dependencies)
-    unconst = deps['faster__polynomial2__edmd']
-    const1 = deps['faster__polynomial2__srconst_1']
-    const099 = deps['faster__polynomial2__srconst_099']
-    # Compute time array
-    t_step = 1 / unconst['bode']['f_samp']
-    n_t = int(10 / t_step)
-    t = np.arange(n_t) * t_step
-    # Create figure
-    fig, ax = plt.subplots(constrained_layout=True, figsize=(3, 3))
-    # Plot first state
-    ax.plot(
-        t,
-        unconst['timeseries_1.0']['X_validation'][:n_t, 3],
-        color=C['tikz_u'],
-        linewidth=3,
-    )
-    ax.grid(False)
-    ax.set_xlabel(r'$t$')
-    ax.set_ylabel(r'$u(t)$')
-    ax.set_xticks([])
-    ax.set_yticks([])
-    # Save targets
-    for target in targets:
-        fig.savefig(target, **SAVEFIG_TIKZ_PARAMS)
-
-
-def faster_tikz_lf_1(dependencies: List[pathlib.Path],
-                     targets: List[pathlib.Path]) -> None:
-    """FASTER Tikz lifting function plot."""
-    deps = _open_hydra_pickles(dependencies)
-    unconst = deps['faster__polynomial2__edmd']
-    const1 = deps['faster__polynomial2__srconst_1']
-    const099 = deps['faster__polynomial2__srconst_099']
-    # Create figure
-    fig = plt.figure(constrained_layout=True, figsize=(3, 3))
-    ax = fig.add_subplot(projection='3d')
-    x, y = np.meshgrid(
-        np.linspace(-1, 1, 20),
-        np.linspace(-1, 1, 20),
-    )
-    z = y
-    ax.plot_surface(x, y, z, cmap='viridis')
-    ax.set_xlabel(r'$x_1$')
-    ax.set_ylabel(r'$x_2$')
-    ax.set_zlabel(r'$\psi_2(x_1, x_2, u)$')
-    ax.set_xticks([])
-    ax.set_yticks([])
-    ax.set_zticks([])
-    ax.set_xlim([-1.1, 1.1])
-    ax.set_ylim([-1.1, 1.1])
-    ax.set_zlim([-1.1, 1.1])
-    # Save targets
-    for target in targets:
-        fig.savefig(target, **SAVEFIG_TIKZ_PARAMS)
-
-
-def faster_tikz_lf_2(dependencies: List[pathlib.Path],
-                     targets: List[pathlib.Path]) -> None:
-    """FASTER Tikz lifting function plot."""
-    deps = _open_hydra_pickles(dependencies)
-    unconst = deps['faster__polynomial2__edmd']
-    const1 = deps['faster__polynomial2__srconst_1']
-    const099 = deps['faster__polynomial2__srconst_099']
-    # Create figure
-    fig = plt.figure(constrained_layout=True, figsize=(3, 3))
-    ax = fig.add_subplot(projection='3d')
-    x, y = np.meshgrid(
-        np.linspace(-1, 1, 20),
-        np.linspace(-1, 1, 20),
-    )
-    z = x**2
-    ax.plot_surface(x, y, z, cmap='viridis')
-    ax.set_xlabel(r'$x_1$')
-    ax.set_ylabel(r'$x_2$')
-    ax.set_zlabel(r'$\psi_3(x_1, x_2, u)$')
-    ax.set_xticks([])
-    ax.set_yticks([])
-    ax.set_zticks([])
-    ax.set_xlim([-1.1, 1.1])
-    ax.set_ylim([-1.1, 1.1])
-    ax.set_zlim([-1.1, 1.1])
-    # Save targets
-    for target in targets:
-        fig.savefig(target, **SAVEFIG_TIKZ_PARAMS)
-
-
-def faster_tikz_lf_3(dependencies: List[pathlib.Path],
-                     targets: List[pathlib.Path]) -> None:
-    """FASTER Tikz lifting function plot."""
-    deps = _open_hydra_pickles(dependencies)
-    unconst = deps['faster__polynomial2__edmd']
-    const1 = deps['faster__polynomial2__srconst_1']
-    const099 = deps['faster__polynomial2__srconst_099']
-    # Create figure
-    fig = plt.figure(constrained_layout=True, figsize=(3, 3))
-    ax = fig.add_subplot(projection='3d')
-    x, y = np.meshgrid(
-        np.linspace(-1, 1, 20),
-        np.linspace(-1, 1, 20),
-    )
-    z = x * y
-    ax.plot_surface(x, y, z, cmap='viridis')
-    ax.set_xlabel(r'$x_1$')
-    ax.set_ylabel(r'$x_2$')
-    ax.set_zlabel(r'$\psi_4(x_1, x_2, u)$')
-    ax.set_xticks([])
-    ax.set_yticks([])
-    ax.set_zticks([])
-    ax.set_xlim([-1.1, 1.1])
-    ax.set_ylim([-1.1, 1.1])
-    ax.set_zlim([-1.1, 1.1])
-    # Save targets
-    for target in targets:
-        fig.savefig(target, **SAVEFIG_TIKZ_PARAMS)
-
-
-def faster_tikz_comp_1(dependencies: List[pathlib.Path],
-                       targets: List[pathlib.Path]) -> None:
-    """FASTER Tikz comparison plot."""
-    deps = _open_hydra_pickles(dependencies)
-    unconst = deps['faster__polynomial2__edmd']
-    const1 = deps['faster__polynomial2__srconst_1']
-    const099 = deps['faster__polynomial2__srconst_099']
-    # Compute time array
-    t_step = 1 / unconst['bode']['f_samp']
-    n_t = int(10 / t_step)
-    t = np.arange(n_t) * t_step
-    # Create figure
-    fig, ax = plt.subplots(constrained_layout=True, figsize=(3, 3))
-    # Plot first state
-    ax.plot(
-        t,
-        unconst['timeseries_1.0']['X_validation'][n_t:(2 * n_t), 1],
-        color=C['tikz_x1'],
-        linewidth=3,
-    )
-    ax.plot(
-        t,
-        const099['timeseries_1.0']['X_prediction'][n_t:(2 * n_t), 1],
-        color=C['tikz_x1'],
-        linestyle='--',
-        linewidth=3,
-    )
-    ax.grid(False)
-    ax.set_xlabel(r'$t$')
-    ax.set_ylabel(r'$x_1(t)$')
-    ax.set_xticks([])
-    ax.set_yticks([])
-    # Save targets
-    for target in targets:
-        fig.savefig(target, **SAVEFIG_TIKZ_PARAMS)
-
-
-def faster_tikz_comp_2(dependencies: List[pathlib.Path],
-                       targets: List[pathlib.Path]) -> None:
-    """FASTER Tikz comparison plot."""
-    deps = _open_hydra_pickles(dependencies)
-    unconst = deps['faster__polynomial2__edmd']
-    const1 = deps['faster__polynomial2__srconst_1']
-    const099 = deps['faster__polynomial2__srconst_099']
-    # Compute time array
-    t_step = 1 / unconst['bode']['f_samp']
-    n_t = int(10 / t_step)
-    t = np.arange(n_t) * t_step
-    # Create figure
-    fig, ax = plt.subplots(constrained_layout=True, figsize=(3, 3))
-    # Plot first state
-    ax.plot(
-        t,
-        unconst['timeseries_1.0']['X_validation'][n_t:(2 * n_t), 2],
-        color=C['tikz_x2'],
-        linewidth=3,
-    )
-    ax.plot(
-        t,
-        const099['timeseries_1.0']['X_prediction'][n_t:(2 * n_t), 2],
-        color=C['tikz_x2'],
-        linestyle='--',
-        linewidth=3,
-    )
-    ax.grid(False)
-    ax.set_xlabel(r'$t$')
-    ax.set_ylabel(r'$x_2(t)$')
-    ax.set_xticks([])
-    ax.set_yticks([])
-    # Save targets
-    for target in targets:
-        fig.savefig(target, **SAVEFIG_TIKZ_PARAMS)
-
-
-def faster_tikz_comp_3(dependencies: List[pathlib.Path],
-                       targets: List[pathlib.Path]) -> None:
-    """FASTER Tikz comparison plot."""
-    deps = _open_hydra_pickles(dependencies)
-    unconst = deps['faster__polynomial2__edmd']
-    const1 = deps['faster__polynomial2__srconst_1']
-    const099 = deps['faster__polynomial2__srconst_099']
-    # Compute time array
-    t_step = 1 / unconst['bode']['f_samp']
-    n_t = int(10 / t_step)
-    t = np.arange(n_t) * t_step
-    # Create figure
-    fig, ax = plt.subplots(constrained_layout=True, figsize=(3, 3))
-    # Plot first state
-    ax.plot(
-        t,
-        unconst['timeseries_1.0']['X_validation'][n_t:(2 * n_t), 3],
-        color=C['tikz_u'],
-        linewidth=3,
-    )
-    ax.grid(False)
-    ax.set_xlabel(r'$t$')
-    ax.set_ylabel(r'$u(t)$')
-    ax.set_xticks([])
-    ax.set_yticks([])
-    # Save targets
-    for target in targets:
-        fig.savefig(target, **SAVEFIG_TIKZ_PARAMS)
-
-
-def faster_tikz_eig(dependencies: List[pathlib.Path],
-                    targets: List[pathlib.Path]) -> None:
-    """Save FASTER Tikz eigenvalue plot."""
-    deps = _open_hydra_pickles(dependencies)
-    unconst = deps['faster__polynomial2__edmd']
-    const1 = deps['faster__polynomial2__srconst_1']
-    const099 = deps['faster__polynomial2__srconst_099']
-    # Create figure
-    fig = plt.figure(constrained_layout=True, figsize=(3, 3))
-    ax = fig.add_subplot(projection='polar')
-    # Set common scatter plot settings
-    style = {
-        's': 50 * 1.5,
-        'edgecolors': 'w',
-        'linewidth': 0.25 * 1.5,
-    }
-    # Plot eigenvalue constraints
-    th = np.linspace(0, 2 * np.pi)
-    ax.plot(
-        th,
-        0.99 * np.ones(th.shape),
-        '--',
-        color=C['tikz_rho'],
-        linewidth=1.5,
-        zorder=2,
-    )
-    # Plot eigenvalues
-    ax.scatter(
-        np.angle(const099['eigenvalues']['eigv']),
-        np.absolute(const099['eigenvalues']['eigv']),
-        color=C['tikz_eig'],
-        marker='o',
-        zorder=2,
-        **style,
-    )
-    # Set axis labels
-    ax.set_yticks([0, 0.33, 0.66, 1])
-    ax.set_yticklabels([])
-    ax.set_rlim([0, 1.05])
-    ax.text(
-        x=np.pi / 4 - np.pi / 16,
-        y=0.75,
-        s=r'$\bar{\rho}$',
-        color=C['tikz_rho'],
-        fontsize='x-large',
-    )
-    # Save targets
-    for target in targets:
-        fig.savefig(target, **SAVEFIG_PARAMS)
-
-
-def faster_tikz_bode(dependencies: List[pathlib.Path],
-                     targets: List[pathlib.Path]) -> None:
-    """Save FASTER Tikz eigenvalue plot."""
-    deps = _open_hydra_pickles(dependencies)
-    unconst = deps['faster__polynomial2__edmd']
-    const1 = deps['faster__polynomial2__srconst_1']
-    const099 = deps['faster__polynomial2__srconst_099']
-    # Create figure
-    fig, ax = plt.subplots(constrained_layout=True, figsize=(3, 3))
-    ax.semilogx(
-        const099['bode']['f_plot'],
-        const099['bode']['mag_db'],
-        subs=[-1],
-        color=C['tikz_bode'],
-    )
-    peak = np.max(const099['bode']['mag_db'])
-    ax.axhline(
-        y=peak,
-        ls='--',
-        color=C['tikz_hinf'],
-    )
-    ax.text(
-        x=10,
-        y=peak - 5,
-        s=r'$\|\mathcal{G}\|_\infty$',
-        color=C['tikz_hinf'],
-        fontsize='x-large',
-    )
-    # Set axis labels and limits
-    ax.set_xlabel(r'$f$')
-    ax.set_ylabel(r'$\bar{\sigma}\left({\bf G}(e^{j \theta})\right)$')
-    ax.set_xticks([])
-    ax.set_yticks([])
     # Save targets
     for target in targets:
         fig.savefig(target, **SAVEFIG_PARAMS)
@@ -1780,6 +1423,466 @@ def soft_robot_exec(dependencies: List[pathlib.Path],
     # Set axis labels
     ax.set_xlabel('Regression method')
     ax.set_ylabel('Execution time per iteration (min)')
+    # Save targets
+    for target in targets:
+        fig.savefig(target, **SAVEFIG_PARAMS)
+
+
+# --------------------------------------------------------------------------- #
+# Tikz figures
+# --------------------------------------------------------------------------- #
+
+
+def faster_tikz_time_1a(dependencies: List[pathlib.Path],
+                        targets: List[pathlib.Path]) -> None:
+    """FASTER Tikz time plot 1a."""
+    _faster_tikz_time_1(dependencies, targets, 0)
+
+
+def faster_tikz_time_1b(dependencies: List[pathlib.Path],
+                        targets: List[pathlib.Path]) -> None:
+    """FASTER Tikz time plot 1b."""
+    _faster_tikz_time_1(dependencies, targets, 1)
+
+
+def faster_tikz_time_1c(dependencies: List[pathlib.Path],
+                        targets: List[pathlib.Path]) -> None:
+    """FASTER Tikz time plot 1c."""
+    _faster_tikz_time_1(dependencies, targets, 2)
+
+
+def _faster_tikz_time_1(dependencies: List[pathlib.Path],
+                        targets: List[pathlib.Path], segment: int) -> None:
+    """FASTER Tikz time plot helper 1."""
+    deps = _open_hydra_pickles(dependencies)
+    unconst = deps['faster__polynomial2__edmd']
+    # Compute time array
+    t_step = 1 / unconst['bode']['f_samp']
+    n_t = int(10 / t_step)
+    t = np.arange(n_t) * t_step
+    # Create figure
+    fig, ax = plt.subplots(constrained_layout=True, figsize=(3, 3))
+    # Plot first state
+    start = n_t * segment
+    stop = n_t * (segment + 1)
+    ax.plot(
+        t,
+        unconst['timeseries_1.0']['X_validation'][start:stop, 1],
+        color=C['tikz_x1'],
+        linewidth=3,
+    )
+    ax.grid(False)
+    ax.set_xlabel(r'$t$')
+    ax.set_ylabel(r'$x_1(t)$')
+    ax.set_xticks([])
+    ax.set_yticks([])
+    ax.set_ylim([-6, 6])
+    # Save targets
+    for target in targets:
+        fig.savefig(target, **SAVEFIG_TIKZ_PARAMS)
+
+
+def faster_tikz_time_2a(dependencies: List[pathlib.Path],
+                        targets: List[pathlib.Path]) -> None:
+    """FASTER Tikz time plot 2a."""
+    _faster_tikz_time_2(dependencies, targets, 0)
+
+
+def faster_tikz_time_2b(dependencies: List[pathlib.Path],
+                        targets: List[pathlib.Path]) -> None:
+    """FASTER Tikz time plot 2b."""
+    _faster_tikz_time_2(dependencies, targets, 1)
+
+
+def faster_tikz_time_2c(dependencies: List[pathlib.Path],
+                        targets: List[pathlib.Path]) -> None:
+    """FASTER Tikz time plot 2c."""
+    _faster_tikz_time_2(dependencies, targets, 2)
+
+
+def _faster_tikz_time_2(dependencies: List[pathlib.Path],
+                        targets: List[pathlib.Path], segment: int) -> None:
+    """FASTER Tikz time plot helper 2."""
+    deps = _open_hydra_pickles(dependencies)
+    unconst = deps['faster__polynomial2__edmd']
+    # Compute time array
+    t_step = 1 / unconst['bode']['f_samp']
+    n_t = int(10 / t_step)
+    t = np.arange(n_t) * t_step
+    # Create figure
+    fig, ax = plt.subplots(constrained_layout=True, figsize=(3, 3))
+    # Plot first state
+    start = n_t * segment
+    stop = n_t * (segment + 1)
+    ax.plot(
+        t,
+        # Second state is approx 5x bigger than first
+        5 * unconst['timeseries_1.0']['X_validation'][start:stop, 2],
+        color=C['tikz_x2'],
+        linewidth=3,
+    )
+    ax.grid(False)
+    ax.set_xlabel(r'$t$')
+    ax.set_ylabel(r'$x_2(t)$')
+    ax.set_xticks([])
+    ax.set_yticks([])
+    ax.set_ylim([-6, 6])
+    # Save targets
+    for target in targets:
+        fig.savefig(target, **SAVEFIG_TIKZ_PARAMS)
+
+
+def faster_tikz_time_3a(dependencies: List[pathlib.Path],
+                        targets: List[pathlib.Path]) -> None:
+    """FASTER Tikz time plot 3a."""
+    _faster_tikz_time_3(dependencies, targets, 0)
+
+
+def faster_tikz_time_3b(dependencies: List[pathlib.Path],
+                        targets: List[pathlib.Path]) -> None:
+    """FASTER Tikz time plot 3b."""
+    _faster_tikz_time_3(dependencies, targets, 1)
+
+
+def faster_tikz_time_3c(dependencies: List[pathlib.Path],
+                        targets: List[pathlib.Path]) -> None:
+    """FASTER Tikz time plot 3c."""
+    _faster_tikz_time_3(dependencies, targets, 2)
+
+
+def _faster_tikz_time_3(dependencies: List[pathlib.Path],
+                        targets: List[pathlib.Path], segment: int) -> None:
+    """FASTER Tikz time plot helper 3."""
+    deps = _open_hydra_pickles(dependencies)
+    unconst = deps['faster__polynomial2__edmd']
+    # Compute time array
+    t_step = 1 / unconst['bode']['f_samp']
+    n_t = int(10 / t_step)
+    t = np.arange(n_t) * t_step
+    # Create figure
+    fig, ax = plt.subplots(constrained_layout=True, figsize=(3, 3))
+    # Plot first state
+    start = n_t * segment
+    stop = n_t * (segment + 1)
+    ax.plot(
+        t,
+        # Input is approx 3x bigger than first state
+        3 * unconst['timeseries_1.0']['X_validation'][start:stop, 3],
+        color=C['tikz_u'],
+        linewidth=3,
+    )
+    ax.grid(False)
+    ax.set_xlabel(r'$t$')
+    ax.set_ylabel(r'$u(t)$')
+    ax.set_xticks([])
+    ax.set_yticks([])
+    ax.set_ylim([-6, 6])
+    # Save targets
+    for target in targets:
+        fig.savefig(target, **SAVEFIG_TIKZ_PARAMS)
+
+
+def faster_tikz_lf_1(dependencies: List[pathlib.Path],
+                     targets: List[pathlib.Path]) -> None:
+    """FASTER Tikz lifting function plot."""
+    # Create figure
+    fig = plt.figure(constrained_layout=True, figsize=(3, 3))
+    ax = fig.add_subplot(projection='3d')
+    x, y = np.meshgrid(
+        np.linspace(-1, 1, 20),
+        np.linspace(-1, 1, 20),
+    )
+    z = y
+    ax.plot_surface(x, y, z, cmap=cmcrameri.cm.batlow)
+    ax.set_xlabel(r'$x_1$')
+    ax.set_ylabel(r'$x_2$')
+    ax.set_zlabel(r'$\psi_2(x_1, x_2, u)$')
+    ax.set_xticks([])
+    ax.set_yticks([])
+    ax.set_zticks([])
+    ax.set_xlim([-1.1, 1.1])
+    ax.set_ylim([-1.1, 1.1])
+    ax.set_zlim([-1.1, 1.1])
+    # Save targets
+    for target in targets:
+        fig.savefig(target, **SAVEFIG_TIKZ_PARAMS)
+
+
+def faster_tikz_lf_2(dependencies: List[pathlib.Path],
+                     targets: List[pathlib.Path]) -> None:
+    """FASTER Tikz lifting function plot."""
+    # Create figure
+    fig = plt.figure(constrained_layout=True, figsize=(3, 3))
+    ax = fig.add_subplot(projection='3d')
+    x, y = np.meshgrid(
+        np.linspace(-1, 1, 20),
+        np.linspace(-1, 1, 20),
+    )
+    z = x**2
+    ax.plot_surface(x, y, z, cmap=cmcrameri.cm.batlow)
+    ax.set_xlabel(r'$x_1$')
+    ax.set_ylabel(r'$x_2$')
+    ax.set_zlabel(r'$\psi_3(x_1, x_2, u)$')
+    ax.set_xticks([])
+    ax.set_yticks([])
+    ax.set_zticks([])
+    ax.set_xlim([-1.1, 1.1])
+    ax.set_ylim([-1.1, 1.1])
+    ax.set_zlim([-1.1, 1.1])
+    # Save targets
+    for target in targets:
+        fig.savefig(target, **SAVEFIG_TIKZ_PARAMS)
+
+
+def faster_tikz_lf_3(dependencies: List[pathlib.Path],
+                     targets: List[pathlib.Path]) -> None:
+    """FASTER Tikz lifting function plot."""
+    # Create figure
+    fig = plt.figure(constrained_layout=True, figsize=(3, 3))
+    ax = fig.add_subplot(projection='3d')
+    x, y = np.meshgrid(
+        np.linspace(-1, 1, 20),
+        np.linspace(-1, 1, 20),
+    )
+    z = x * y
+    ax.plot_surface(x, y, z, cmap=cmcrameri.cm.batlow)
+    ax.set_xlabel(r'$x_1$')
+    ax.set_ylabel(r'$x_2$')
+    ax.set_zlabel(r'$\psi_4(x_1, x_2, u)$')
+    ax.set_xticks([])
+    ax.set_yticks([])
+    ax.set_zticks([])
+    ax.set_xlim([-1.1, 1.1])
+    ax.set_ylim([-1.1, 1.1])
+    ax.set_zlim([-1.1, 1.1])
+    # Save targets
+    for target in targets:
+        fig.savefig(target, **SAVEFIG_TIKZ_PARAMS)
+
+
+def faster_tikz_lifted_1a(dependencies: List[pathlib.Path],
+                          targets: List[pathlib.Path]) -> None:
+    """FASTER Tikz lifted time plot 1a."""
+    _faster_tikz_lifted_1(dependencies, targets, 0)
+
+
+def faster_tikz_lifted_1b(dependencies: List[pathlib.Path],
+                          targets: List[pathlib.Path]) -> None:
+    """FASTER Tikz lifted time plot 1b."""
+    _faster_tikz_lifted_1(dependencies, targets, 1)
+
+
+def faster_tikz_lifted_1c(dependencies: List[pathlib.Path],
+                          targets: List[pathlib.Path]) -> None:
+    """FASTER Tikz lifted time plot 1c."""
+    _faster_tikz_lifted_1(dependencies, targets, 2)
+
+
+def _faster_tikz_lifted_1(dependencies: List[pathlib.Path],
+                          targets: List[pathlib.Path], segment: int) -> None:
+    """FASTER Tikz lifted time plot helper 1."""
+    deps = _open_hydra_pickles(dependencies)
+    unconst = deps['faster__polynomial2__edmd']
+    # Compute time array
+    t_step = 1 / unconst['bode']['f_samp']
+    n_t = int(10 / t_step)
+    t = np.arange(n_t) * t_step
+    # Create figure
+    fig, ax = plt.subplots(constrained_layout=True, figsize=(2, 2))
+    # Plot first state
+    start = n_t * segment
+    stop = n_t * (segment + 1)
+    lf = 5 * unconst['timeseries_1.0']['X_validation'][start:stop, 2]
+    carr = cmcrameri.cm.batlow(lf / 5 + 0.5)
+    ax.scatter(t, lf, c=carr, s=3)
+    ax.grid(False)
+    ax.set_xlabel(r'$t$')
+    ax.set_ylabel(r'$\psi_2(t)$')
+    ax.set_xticks([])
+    ax.set_yticks([])
+    ax.set_ylim([-6, 6])
+    ax.set_xlim([0, t_step * t.size])
+    # Save targets
+    for target in targets:
+        fig.savefig(target, **SAVEFIG_TIKZ_PARAMS)
+
+
+def faster_tikz_lifted_2a(dependencies: List[pathlib.Path],
+                          targets: List[pathlib.Path]) -> None:
+    """FASTER Tikz lifted time plot 2a."""
+    _faster_tikz_lifted_2(dependencies, targets, 0)
+
+
+def faster_tikz_lifted_2b(dependencies: List[pathlib.Path],
+                          targets: List[pathlib.Path]) -> None:
+    """FASTER Tikz lifted time plot 2b."""
+    _faster_tikz_lifted_2(dependencies, targets, 1)
+
+
+def faster_tikz_lifted_2c(dependencies: List[pathlib.Path],
+                          targets: List[pathlib.Path]) -> None:
+    """FASTER Tikz lifted time plot 2c."""
+    _faster_tikz_lifted_2(dependencies, targets, 2)
+
+
+def _faster_tikz_lifted_2(dependencies: List[pathlib.Path],
+                          targets: List[pathlib.Path], segment: int) -> None:
+    """FASTER Tikz lifted time plot helper 2."""
+    deps = _open_hydra_pickles(dependencies)
+    unconst = deps['faster__polynomial2__edmd']
+    # Compute time array
+    t_step = 1 / unconst['bode']['f_samp']
+    n_t = int(10 / t_step)
+    t = np.arange(n_t) * t_step
+    # Create figure
+    fig, ax = plt.subplots(constrained_layout=True, figsize=(2, 2))
+    # Plot first state
+    start = n_t * segment
+    stop = n_t * (segment + 1)
+    lf = unconst['timeseries_1.0']['X_validation'][start:stop, 1]**2
+    carr = cmcrameri.cm.batlow(lf / 5)
+    ax.scatter(t, lf, c=carr, s=3)
+    ax.grid(False)
+    ax.set_xlabel(r'$t$')
+    ax.set_ylabel(r'$\psi_3(t)$')
+    ax.set_xticks([])
+    ax.set_yticks([])
+    ax.set_ylim([-6, 6])
+    # Save targets
+    for target in targets:
+        fig.savefig(target, **SAVEFIG_TIKZ_PARAMS)
+
+
+def faster_tikz_lifted_3a(dependencies: List[pathlib.Path],
+                          targets: List[pathlib.Path]) -> None:
+    """FASTER Tikz lifted time plot 3a."""
+    _faster_tikz_lifted_3(dependencies, targets, 0)
+
+
+def faster_tikz_lifted_3b(dependencies: List[pathlib.Path],
+                          targets: List[pathlib.Path]) -> None:
+    """FASTER Tikz lifted time plot 3b."""
+    _faster_tikz_lifted_3(dependencies, targets, 1)
+
+
+def faster_tikz_lifted_3c(dependencies: List[pathlib.Path],
+                          targets: List[pathlib.Path]) -> None:
+    """FASTER Tikz lifted time plot 3c."""
+    _faster_tikz_lifted_3(dependencies, targets, 2)
+
+
+def _faster_tikz_lifted_3(dependencies: List[pathlib.Path],
+                          targets: List[pathlib.Path], segment: int) -> None:
+    """FASTER Tikz lifted time plot helper 3."""
+    deps = _open_hydra_pickles(dependencies)
+    unconst = deps['faster__polynomial2__edmd']
+    # Compute time array
+    t_step = 1 / unconst['bode']['f_samp']
+    n_t = int(10 / t_step)
+    t = np.arange(n_t) * t_step
+    # Create figure
+    fig, ax = plt.subplots(constrained_layout=True, figsize=(2, 2))
+    # Plot first state
+    start = n_t * segment
+    stop = n_t * (segment + 1)
+    lf = (5 * unconst['timeseries_1.0']['X_validation'][start:stop, 1]
+            * unconst['timeseries_1.0']['X_validation'][start:stop, 2])
+    carr = cmcrameri.cm.batlow(lf / 5 + 0.5)
+    ax.scatter(t, lf, c=carr, s=3)
+    ax.grid(False)
+    ax.set_xlabel(r'$t$')
+    ax.set_ylabel(r'$\psi_4(t)$')
+    ax.set_xticks([])
+    ax.set_yticks([])
+    ax.set_ylim([-6, 6])
+    # Save targets
+    for target in targets:
+        fig.savefig(target, **SAVEFIG_TIKZ_PARAMS)
+
+
+def faster_tikz_eig(dependencies: List[pathlib.Path],
+                    targets: List[pathlib.Path]) -> None:
+    """Save FASTER Tikz eigenvalue plot."""
+    deps = _open_hydra_pickles(dependencies)
+    const099 = deps['faster__polynomial2__srconst_099']
+    # Create figure
+    fig = plt.figure(constrained_layout=True, figsize=(4, 4))
+    ax = fig.add_subplot(projection='polar')
+    # Set common scatter plot settings
+    style = {
+        's': 50 * 1.5,
+        'edgecolors': 'w',
+        'linewidth': 0.25 * 1.5,
+    }
+    # Plot eigenvalue constraints
+    th = np.linspace(0, 2 * np.pi)
+    ax.plot(
+        th,
+        0.99 * np.ones(th.shape),
+        '--',
+        color=C['tikz_rho'],
+        linewidth=3,
+        zorder=2,
+    )
+    # Plot eigenvalues
+    ax.scatter(
+        np.angle(const099['eigenvalues']['eigv']),
+        np.absolute(const099['eigenvalues']['eigv']),
+        color=C['tikz_eig'],
+        marker='o',
+        zorder=2,
+        **style,
+    )
+    # Set axis labels
+    ax.set_yticks([0, 0.33, 0.66, 1])
+    ax.set_yticklabels(['', '', '', '1.0'])
+    ax.set_rlim([0, 1.33])
+    ax.text(
+        x=-np.pi / 4 + np.pi / 16,
+        y=0.75,
+        s=r'$\bar{\rho}$',
+        color=C['tikz_rho'],
+        fontsize='x-large',
+    )
+    # Save targets
+    for target in targets:
+        fig.savefig(target, **SAVEFIG_PARAMS)
+
+
+def faster_tikz_bode(dependencies: List[pathlib.Path],
+                     targets: List[pathlib.Path]) -> None:
+    """Save FASTER Tikz eigenvalue plot."""
+    deps = _open_hydra_pickles(dependencies)
+    const099 = deps['faster__polynomial2__srconst_099']
+    # Create figure
+    fig, ax = plt.subplots(constrained_layout=True, figsize=(4, 4))
+    ax.semilogx(
+        const099['bode']['f_plot'],
+        const099['bode']['mag_db'],
+        linewidth=3,
+        color=C['tikz_bode'],
+    )
+    ax.grid(True, linestyle='--')
+    peak = np.max(const099['bode']['mag_db'])
+    ax.axhline(
+        y=peak,
+        ls='--',
+        linewidth=3,
+        color=C['tikz_hinf'],
+    )
+    ax.text(
+        x=8,
+        y=peak - 6,
+        s=r'$\|\boldsymbol{\mathcal{G}}\|_\infty$',
+        color=C['tikz_hinf'],
+        fontsize='x-large',
+    )
+    # Set axis labels and limits
+    ax.set_xlabel(r'$f$')
+    ax.set_ylabel(r'$\bar{\sigma}\left({\bf G}(f)\right)$')
+    # ax.set_ylabel(r'Gain')
+    ax.set_xticklabels([])
+    ax.set_yticklabels([])
     # Save targets
     for target in targets:
         fig.savefig(target, **SAVEFIG_PARAMS)
