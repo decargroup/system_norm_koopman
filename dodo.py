@@ -131,7 +131,7 @@ C = {
 # Global Matplotlib settings
 if matplotlib.checkdep_usetex(True):  # Use LaTeX only if available
     plt.rc('text', usetex=True)
-    plt.rc('font', family='serif', size=16)
+    plt.rc('font', family='serif', size=15)
     plt.rc('text.latex', preamble=r'\usepackage{amsmath}')
 plt.rc('lines', linewidth=2)
 plt.rc('axes', grid=True)
@@ -145,6 +145,7 @@ SAVEFIG_TIKZ_PARAMS: Dict[str, Any] = {
     'bbox_inches': 'tight',
     'pad_inches': 0.01,
 }
+TIKZ_FONT_SIZE = 22
 
 # --------------------------------------------------------------------------- #
 # Task definitions
@@ -601,8 +602,8 @@ def faster_error(dependencies: List[pathlib.Path],
     fig.legend(
         ax[0].get_lines() + ax[2].get_lines(),
         [
-            r'A.S. constr., $\bar{\rho} = 1.00$',
-            r'A.S. constr., $\bar{\rho} = 0.99$',
+            r'$\bar{\rho} = 1.00$',
+            r'$\bar{\rho} = 0.99$',
             r'$u(t)$',
         ],
         loc='upper center',
@@ -647,7 +648,7 @@ def faster_eig(dependencies: List[pathlib.Path],
         np.absolute(const1['eigenvalues']['eigv']),
         color=C['1.00'],
         marker='o',
-        label=r'A.S. constr., $\bar{\rho} = 1.00$',
+        label=r'$\bar{\rho} = 1.00$',
         **style,
     )
     ax.scatter(
@@ -655,7 +656,7 @@ def faster_eig(dependencies: List[pathlib.Path],
         np.absolute(const099['eigenvalues']['eigv']),
         color=C['0.99'],
         marker='s',
-        label=r'A.S. constr., $\bar{\rho} = 0.99$',
+        label=r'$\bar{\rho} = 0.99$',
         **style,
     )
     # Add axis labels
@@ -663,7 +664,7 @@ def faster_eig(dependencies: List[pathlib.Path],
     ax.text(-np.pi / 8 - np.pi / 16, 0.5, r'$|\lambda_i|$')
     ax.set_axisbelow(True)
     # Create legend
-    ax.legend(loc='lower left', ncol=1)
+    ax.legend(loc='lower left', ncol=2)
     # Set axis limits and ticks
     ax.set_xticks([d * np.pi / 180 for d in [-20, -10, 0, 10, 20]])
     ax.set_thetalim(-np.pi / 8, np.pi / 8)
@@ -765,11 +766,11 @@ def soft_robot_error(dependencies: List[pathlib.Path],
             ax[2].get_lines()[2],
         ],
         [
-            'Extended DMD',
+            'EDMD',
             r'$u_1(t)$',
-            'A.S. constraint',
+            'A.S. constr.',
             r'$u_2(t)$',
-            f'{HINF} regularizer',
+            f'{HINF} reg.',
             r'$u_3(t)$',
         ],
         loc='upper center',
@@ -1027,7 +1028,7 @@ def soft_robot_weights(dependencies: List[pathlib.Path],
     ax1.semilogx(
         hinf['bode']['f_plot'],
         hinf['bode']['mag_db'],
-        label=f'{HINF} regularizer',
+        label=f'{HINF} reg.',
         color=C['hinf'],
     )
     ax1.semilogx(
@@ -1469,11 +1470,11 @@ def _faster_tikz_time_1(dependencies: List[pathlib.Path],
         t,
         unconst['timeseries_1.0']['X_validation'][start:stop, 1],
         color=C['tikz_x1'],
-        linewidth=3,
+        linewidth=4,
     )
     ax.grid(False)
-    ax.set_xlabel(r'$t$')
-    ax.set_ylabel(r'$x_1(t)$')
+    ax.set_xlabel(r'$t$', fontsize=TIKZ_FONT_SIZE)
+    ax.set_ylabel(r'$x_1(t)$', fontsize=TIKZ_FONT_SIZE)
     ax.set_xticks([])
     ax.set_yticks([])
     ax.set_ylim([-6, 6])
@@ -1519,11 +1520,11 @@ def _faster_tikz_time_2(dependencies: List[pathlib.Path],
         # Second state is approx 5x bigger than first
         5 * unconst['timeseries_1.0']['X_validation'][start:stop, 2],
         color=C['tikz_x2'],
-        linewidth=3,
+        linewidth=4,
     )
     ax.grid(False)
-    ax.set_xlabel(r'$t$')
-    ax.set_ylabel(r'$x_2(t)$')
+    ax.set_xlabel(r'$t$', fontsize=TIKZ_FONT_SIZE)
+    ax.set_ylabel(r'$x_2(t)$', fontsize=TIKZ_FONT_SIZE)
     ax.set_xticks([])
     ax.set_yticks([])
     ax.set_ylim([-6, 6])
@@ -1569,11 +1570,11 @@ def _faster_tikz_time_3(dependencies: List[pathlib.Path],
         # Input is approx 3x bigger than first state
         3 * unconst['timeseries_1.0']['X_validation'][start:stop, 3],
         color=C['tikz_u'],
-        linewidth=3,
+        linewidth=4,
     )
     ax.grid(False)
-    ax.set_xlabel(r'$t$')
-    ax.set_ylabel(r'$u(t)$')
+    ax.set_xlabel(r'$t$', fontsize=TIKZ_FONT_SIZE)
+    ax.set_ylabel(r'$u(t)$', fontsize=TIKZ_FONT_SIZE)
     ax.set_xticks([])
     ax.set_yticks([])
     ax.set_ylim([-6, 6])
@@ -1594,9 +1595,9 @@ def faster_tikz_lf_1(dependencies: List[pathlib.Path],
     )
     z = y
     ax.plot_surface(x, y, z, cmap=cmcrameri.cm.batlow)
-    ax.set_xlabel(r'$x_1$')
-    ax.set_ylabel(r'$x_2$')
-    ax.set_zlabel(r'$\psi_2(x_1, x_2, u)$')
+    ax.set_xlabel(r'$x_1$', fontsize=TIKZ_FONT_SIZE)
+    ax.set_ylabel(r'$x_2$', fontsize=TIKZ_FONT_SIZE)
+    ax.set_zlabel(r'$\psi_2(x_1, x_2, u)$', fontsize=TIKZ_FONT_SIZE)
     ax.set_xticks([])
     ax.set_yticks([])
     ax.set_zticks([])
@@ -1620,9 +1621,9 @@ def faster_tikz_lf_2(dependencies: List[pathlib.Path],
     )
     z = x**2
     ax.plot_surface(x, y, z, cmap=cmcrameri.cm.batlow)
-    ax.set_xlabel(r'$x_1$')
-    ax.set_ylabel(r'$x_2$')
-    ax.set_zlabel(r'$\psi_3(x_1, x_2, u)$')
+    ax.set_xlabel(r'$x_1$', fontsize=TIKZ_FONT_SIZE)
+    ax.set_ylabel(r'$x_2$', fontsize=TIKZ_FONT_SIZE)
+    ax.set_zlabel(r'$\psi_3(x_1, x_2, u)$', fontsize=TIKZ_FONT_SIZE)
     ax.set_xticks([])
     ax.set_yticks([])
     ax.set_zticks([])
@@ -1646,9 +1647,9 @@ def faster_tikz_lf_3(dependencies: List[pathlib.Path],
     )
     z = x * y
     ax.plot_surface(x, y, z, cmap=cmcrameri.cm.batlow)
-    ax.set_xlabel(r'$x_1$')
-    ax.set_ylabel(r'$x_2$')
-    ax.set_zlabel(r'$\psi_4(x_1, x_2, u)$')
+    ax.set_xlabel(r'$x_1$', fontsize=TIKZ_FONT_SIZE)
+    ax.set_ylabel(r'$x_2$', fontsize=TIKZ_FONT_SIZE)
+    ax.set_zlabel(r'$\psi_4(x_1, x_2, u)$', fontsize=TIKZ_FONT_SIZE)
     ax.set_xticks([])
     ax.set_yticks([])
     ax.set_zticks([])
@@ -1688,7 +1689,7 @@ def _faster_tikz_lifted_1(dependencies: List[pathlib.Path],
     n_t = int(10 / t_step)
     t = np.arange(n_t) * t_step
     # Create figure
-    fig, ax = plt.subplots(constrained_layout=True, figsize=(2, 2))
+    fig, ax = plt.subplots(constrained_layout=True, figsize=(2.5, 2.5))
     # Plot first state
     start = n_t * segment
     stop = n_t * (segment + 1)
@@ -1696,8 +1697,8 @@ def _faster_tikz_lifted_1(dependencies: List[pathlib.Path],
     carr = cmcrameri.cm.batlow(lf / 5 + 0.5)
     ax.scatter(t, lf, c=carr, s=3)
     ax.grid(False)
-    ax.set_xlabel(r'$t$')
-    ax.set_ylabel(r'$\psi_2(t)$')
+    ax.set_xlabel(r'$t$', fontsize=TIKZ_FONT_SIZE)
+    ax.set_ylabel(r'$\psi_2(t)$', fontsize=TIKZ_FONT_SIZE)
     ax.set_xticks([])
     ax.set_yticks([])
     ax.set_ylim([-6, 6])
@@ -1735,7 +1736,7 @@ def _faster_tikz_lifted_2(dependencies: List[pathlib.Path],
     n_t = int(10 / t_step)
     t = np.arange(n_t) * t_step
     # Create figure
-    fig, ax = plt.subplots(constrained_layout=True, figsize=(2, 2))
+    fig, ax = plt.subplots(constrained_layout=True, figsize=(2.5, 2.5))
     # Plot first state
     start = n_t * segment
     stop = n_t * (segment + 1)
@@ -1743,8 +1744,8 @@ def _faster_tikz_lifted_2(dependencies: List[pathlib.Path],
     carr = cmcrameri.cm.batlow(lf / 5)
     ax.scatter(t, lf, c=carr, s=3)
     ax.grid(False)
-    ax.set_xlabel(r'$t$')
-    ax.set_ylabel(r'$\psi_3(t)$')
+    ax.set_xlabel(r'$t$', fontsize=TIKZ_FONT_SIZE)
+    ax.set_ylabel(r'$\psi_3(t)$', fontsize=TIKZ_FONT_SIZE)
     ax.set_xticks([])
     ax.set_yticks([])
     ax.set_ylim([-6, 6])
@@ -1781,7 +1782,7 @@ def _faster_tikz_lifted_3(dependencies: List[pathlib.Path],
     n_t = int(10 / t_step)
     t = np.arange(n_t) * t_step
     # Create figure
-    fig, ax = plt.subplots(constrained_layout=True, figsize=(2, 2))
+    fig, ax = plt.subplots(constrained_layout=True, figsize=(2.5, 2.5))
     # Plot first state
     start = n_t * segment
     stop = n_t * (segment + 1)
@@ -1790,8 +1791,8 @@ def _faster_tikz_lifted_3(dependencies: List[pathlib.Path],
     carr = cmcrameri.cm.batlow(lf / 5 + 0.5)
     ax.scatter(t, lf, c=carr, s=3)
     ax.grid(False)
-    ax.set_xlabel(r'$t$')
-    ax.set_ylabel(r'$\psi_4(t)$')
+    ax.set_xlabel(r'$t$', fontsize=TIKZ_FONT_SIZE)
+    ax.set_ylabel(r'$\psi_4(t)$', fontsize=TIKZ_FONT_SIZE)
     ax.set_xticks([])
     ax.set_yticks([])
     ax.set_ylim([-6, 6])
@@ -1806,11 +1807,11 @@ def faster_tikz_eig(dependencies: List[pathlib.Path],
     deps = _open_hydra_pickles(dependencies)
     const099 = deps['faster__polynomial2__srconst_099']
     # Create figure
-    fig = plt.figure(constrained_layout=True, figsize=(4, 4))
+    fig = plt.figure(constrained_layout=True, figsize=(4.4, 4.4))
     ax = fig.add_subplot(projection='polar')
     # Set common scatter plot settings
     style = {
-        's': 50 * 1.5,
+        's': 100 * 1.5,
         'edgecolors': 'w',
         'linewidth': 0.25 * 1.5,
     }
@@ -1821,7 +1822,7 @@ def faster_tikz_eig(dependencies: List[pathlib.Path],
         0.99 * np.ones(th.shape),
         '--',
         color=C['tikz_rho'],
-        linewidth=3,
+        linewidth=4,
         zorder=2,
     )
     # Plot eigenvalues
@@ -1836,6 +1837,7 @@ def faster_tikz_eig(dependencies: List[pathlib.Path],
     # Set axis labels
     ax.set_yticks([0, 0.33, 0.66, 1])
     ax.set_yticklabels(['', '', '', '1.0'])
+    ax.tick_params(axis='both', which='major', labelsize=TIKZ_FONT_SIZE)
     ax.set_rlim([0, 1.33])
     ax.text(
         x=-np.pi / 4 + np.pi / 16,
@@ -1855,11 +1857,11 @@ def faster_tikz_bode(dependencies: List[pathlib.Path],
     deps = _open_hydra_pickles(dependencies)
     const099 = deps['faster__polynomial2__srconst_099']
     # Create figure
-    fig, ax = plt.subplots(constrained_layout=True, figsize=(4, 4))
+    fig, ax = plt.subplots(constrained_layout=True, figsize=(4.4, 4.4))
     ax.semilogx(
         const099['bode']['f_plot'],
         const099['bode']['mag_db'],
-        linewidth=3,
+        linewidth=4,
         color=C['tikz_bode'],
     )
     ax.grid(True, linestyle='--')
@@ -1867,7 +1869,7 @@ def faster_tikz_bode(dependencies: List[pathlib.Path],
     ax.axhline(
         y=peak,
         ls='--',
-        linewidth=3,
+        linewidth=4,
         color=C['tikz_hinf'],
     )
     ax.text(
@@ -1878,8 +1880,9 @@ def faster_tikz_bode(dependencies: List[pathlib.Path],
         fontsize='x-large',
     )
     # Set axis labels and limits
-    ax.set_xlabel(r'$f$')
-    ax.set_ylabel(r'$\bar{\sigma}\left({\bf G}(f)\right)$')
+    ax.set_xlabel(r'$f$', fontsize=TIKZ_FONT_SIZE)
+    ax.set_ylabel(r'$\bar{\sigma}\left({\bf G}(f)\right)$',
+                  fontsize=TIKZ_FONT_SIZE)
     # ax.set_ylabel(r'Gain')
     ax.set_xticklabels([])
     ax.set_yticklabels([])
