@@ -1,0 +1,12 @@
+# Standard EDMD regressor with Tikhonov regularization.
+#
+# This config specifies a regressor that is directly instantiated by Hydra. It
+# is roughly equivalent to the following code::
+#
+#     pykoop.Edmd(alpha=1e-3)
+#
+# Details: https://hydra.cc/docs/advanced/instantiate_objects/overview/
+
+regressor:
+  _target_: pykoop.Edmd
+  alpha: 1e-3

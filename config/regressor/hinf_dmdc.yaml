@@ -7,7 +7,7 @@
 # is roughly equivalent to the following code::
 #
 #     pykoop.lmi_regressors.LmiDmdcHinfReg(
-#         alpha=1,
+#         alpha=1e-3,
 #         ratio=1,
 #         tsvd_unshifted=pykoop.Tsvd(truncation='economy'),
 #         tsvd_shifted=pykoop.Tsvd(truncation='unknown_noise'),
@@ -21,7 +21,7 @@ defaults:
 
 regressor:
   _target_: pykoop.lmi_regressors.LmiDmdcHinfReg
-  alpha: 1
+  alpha: 1e-3
   ratio: 1
   tsvd_unshifted:
     _target_: pykoop.Tsvd
