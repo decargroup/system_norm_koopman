@@ -311,6 +311,8 @@ def task_plot() -> Generator[Dict[str, Any], None, None]:
                 BUILD_DIRS['hydra_outputs'].joinpath(
                     'faster__polynomial2__edmd').joinpath(HYDRA_PICKLE),
                 BUILD_DIRS['hydra_outputs'].joinpath(
+                    'faster__polynomial2__tikhonov').joinpath(HYDRA_PICKLE),
+                BUILD_DIRS['hydra_outputs'].joinpath(
                     'faster__polynomial2__srconst_1').joinpath(HYDRA_PICKLE),
                 BUILD_DIRS['hydra_outputs'].joinpath(
                     'faster__polynomial2__srconst_099').joinpath(HYDRA_PICKLE),
@@ -339,6 +341,9 @@ def task_plot() -> Generator[Dict[str, Any], None, None]:
             'file_dep': [
                 BUILD_DIRS['hydra_outputs'].joinpath(
                     'soft_robot__polynomial3_delay1__edmd').joinpath(
+                        HYDRA_PICKLE),
+                BUILD_DIRS['hydra_outputs'].joinpath(
+                    'soft_robot__polynomial3_delay1__tikhonov').joinpath(
                         HYDRA_PICKLE),
                 BUILD_DIRS['hydra_outputs'].joinpath(
                     'soft_robot__polynomial3_delay1__srconst_0999').joinpath(
