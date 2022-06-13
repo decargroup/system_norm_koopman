@@ -129,7 +129,8 @@ C = {
     'tikz_bode': cmcrameri.cm.batlow(0),
 }
 # Global Matplotlib settings
-if matplotlib.checkdep_usetex(True):  # Use LaTeX only if available
+usetex = matplotlib.checkdep_usetex(True)  # Use LaTeX only if available
+if usetex:
     plt.rc('text', usetex=True)
     plt.rc('font', family='serif', size=15)
     plt.rc('text.latex', preamble=r'\usepackage{amsmath}')
@@ -1787,7 +1788,7 @@ def _faster_tikz_lifted_3(dependencies: List[pathlib.Path],
     start = n_t * segment
     stop = n_t * (segment + 1)
     lf = (5 * unconst['timeseries_1.0']['X_validation'][start:stop, 1]
-            * unconst['timeseries_1.0']['X_validation'][start:stop, 2])
+          * unconst['timeseries_1.0']['X_validation'][start:stop, 2])
     carr = cmcrameri.cm.batlow(lf / 5 + 0.5)
     ax.scatter(t, lf, c=carr, s=3)
     ax.grid(False)
@@ -1875,7 +1876,8 @@ def faster_tikz_bode(dependencies: List[pathlib.Path],
     ax.text(
         x=8,
         y=peak - 6,
-        s=r'$\|\boldsymbol{\mathcal{G}}\|_\infty$',
+        s=(r'$\|\boldsymbol{\mathcal{G}}\|_\infty$'
+           if usetex else r'$\|{\bf \mathcal{G}}\|_\infty$'),
         color=C['tikz_hinf'],
         fontsize='x-large',
     )
