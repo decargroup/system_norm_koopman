@@ -21,7 +21,7 @@ defaults:
 
 regressor:
   _target_: pykoop.lmi_regressors.LmiDmdcHinfReg
-  alpha: 1e-3
+  alpha: 7.5e-3
   ratio: 1
   tsvd_unshifted:
     _target_: pykoop.Tsvd

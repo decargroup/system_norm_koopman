@@ -9,4 +9,4 @@
 
 regressor:
   _target_: pykoop.Edmd
-  alpha: 1e-3
+  alpha: 7.5e-3

@@ -31,7 +31,7 @@ regressor:
   _target_: pykoop.lmi_regressors.LmiHinfZpkMeta
   hinf_regressor:
     _target_: pykoop.lmi_regressors.LmiEdmdHinfReg
-    alpha: 1e-3
+    alpha: 7.5e-3
     ratio: 1
     inv_method: 'svd'
   type: post
