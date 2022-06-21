@@ -1475,12 +1475,14 @@ def soft_robot_scatter_by_method(dependencies: List[pathlib.Path],
     """Save soft robot bar chart grouped by method."""
     deps = _open_hydra_pickles(dependencies)
     edmd = deps['soft_robot__polynomial3_delay1__edmd']
+    tik = deps['soft_robot__polynomial3_delay1__tikhonov']
     srconst = deps['soft_robot__polynomial3_delay1__srconst_0999']
     hinf = deps['soft_robot__polynomial3_delay1__hinf']
     hinfw = deps['soft_robot__polynomial3_delay1__hinfw']
     # Construct dataframe with RMS errors
     errors = pandas.DataFrame({
-        'EDMD': _calc_rmse(edmd),
+        'No reg.': _calc_rmse(edmd),
+        'Tikh. reg.': _calc_rmse(tik),
         'A.S. constr.': _calc_rmse(srconst),
         f'{HINF} reg.': _calc_rmse(hinf),
         f'W. {HINF} reg.': _calc_rmse(hinfw),
@@ -1490,11 +1492,11 @@ def soft_robot_scatter_by_method(dependencies: List[pathlib.Path],
     # Create figure
     fig, ax = plt.subplots(constrained_layout=True, figsize=(5, 5))
     # Column colors
-    c = [C['edmd'], C['srconst'], C['hinf'], C['hinfw']]
+    c = [C['edmd'], C['tik'], C['srconst'], C['hinf'], C['hinfw']]
     # Mean and shifted tick locations
-    x = np.array([0, 1, 2, 3])
-    xm = x - 0.05
-    xp = x + 0.05
+    x = np.array([0, 1, 2, 3, 4])
+    xm = x - 0.075
+    xp = x + 0.075
     # Plot error bars
     ax.errorbar(
         xp,
@@ -1515,24 +1517,45 @@ def soft_robot_scatter_by_method(dependencies: List[pathlib.Path],
     }
     # Plot scatter plots
     ax.scatter(x=xm, y=errors.iloc[0, :], c=c, marker='o', **style)
-    ax.scatter(x=xm, y=errors.iloc[1, :], c=c, marker='s', **style)
-    ax.scatter(x=xm, y=errors.iloc[2, :], c=c, marker='D', **style)
-    ax.scatter(x=xm, y=errors.iloc[3, :], c=c, marker='P', **style)
+    ax.scatter(x=xm, y=errors.iloc[1, :], c=c, marker='v', **style)
+    ax.scatter(x=xm, y=errors.iloc[2, :], c=c, marker='s', **style)
+    ax.scatter(x=xm, y=errors.iloc[3, :], c=c, marker='D', **style)
     # Plot invisible points for use in legend
     ax.scatter(x=-1, y=-1, c='k', marker='o', label=r'Valid. ep. \#1', **style)
-    ax.scatter(x=-1, y=-1, c='k', marker='s', label=r'Valid. ep. \#2', **style)
-    ax.scatter(x=-1, y=-1, c='k', marker='D', label=r'Valid. ep. \#3', **style)
-    ax.scatter(x=-1, y=-1, c='k', marker='P', label=r'Valid. ep. \#4', **style)
+    ax.scatter(x=-1, y=-1, c='k', marker='v', label=r'Valid. ep. \#2', **style)
+    ax.scatter(x=-1, y=-1, c='k', marker='s', label=r'Valid. ep. \#3', **style)
+    ax.scatter(x=-1, y=-1, c='k', marker='D', label=r'Valid. ep. \#4', **style)
     # Set labels
     ax.set_xlabel('Regression method')
     ax.set_ylabel('RMS Euclidean error (cm)')
     # Set limits and ticks
-    ax.set_ylim(0, 1.6)
-    ax.set_xlim(-0.5, 3.5)
+    ax.set_ylim(0, 1.3)
+    ax.set_xlim(-0.5, 4.5)
     ax.set_xticks(x)
-    ax.set_xticklabels([errors.columns[i] for i in range(len(x))])
+    ax.set_xticklabels(
+        [errors.columns[i] for i in range(len(x))],
+        rotation=30,
+        rotation_mode='anchor',
+        ha='right',
+    )
     # Create legend
-    ax.legend(loc='upper right')
+    fig.legend(
+        [
+            ax.get_children()[2],
+            ax.get_children()[4],
+            ax.get_children()[3],
+            ax.get_children()[5],
+        ],
+        [
+            r'Valid. ep. \# 1',
+            r'Valid. ep. \# 3',
+            r'Valid. ep. \# 2',
+            r'Valid. ep. \# 4',
+        ],
+        loc='upper center',
+        ncol=2,
+        bbox_to_anchor=(0.5, 0),
+    )
     # Save targets
     for target in targets:
         fig.savefig(target, **SAVEFIG_PARAMS)
@@ -1548,10 +1571,10 @@ def soft_robot_scatter_dmdc(dependencies: List[pathlib.Path],
     hinf_dmdc = deps['soft_robot__polynomial3_delay1__hinf_dmdc']
     # Construct dataframe with RMS errors
     errors = pandas.DataFrame({
-        'EDMD,\nA.S. constr.': _calc_rmse(srconst),
-        'DMDc,\nA.S. constr.': _calc_rmse(srconst_dmdc),
-        f'EDMD,\n{HINF} reg.': _calc_rmse(hinf),
-        f'DMDc,\n{HINF} reg.': _calc_rmse(hinf_dmdc),
+        'A.S. constr.\nEDMD': _calc_rmse(srconst),
+        'A.S. constr.\nDMDc': _calc_rmse(srconst_dmdc),
+        f'{HINF} reg.\nEDMD': _calc_rmse(hinf),
+        f'{HINF} reg.\nDMDc': _calc_rmse(hinf_dmdc),
     })
     means = errors.mean()
     std = errors.std()
@@ -1561,8 +1584,8 @@ def soft_robot_scatter_dmdc(dependencies: List[pathlib.Path],
     c = [C['srconst'], C['srconst_dmdc'], C['hinf'], C['hinf_dmdc']]
     # Mean and shifted tick locations
     x = np.array([0, 1, 2, 3])
-    xm = x - 0.05
-    xp = x + 0.05
+    xm = x - 0.075
+    xp = x + 0.075
     # Plot error bars
     ax.errorbar(
         xp,
@@ -1583,24 +1606,45 @@ def soft_robot_scatter_dmdc(dependencies: List[pathlib.Path],
     }
     # Plot scatter plots
     ax.scatter(x=xm, y=errors.iloc[0, :], c=c, marker='o', **style)
-    ax.scatter(x=xm, y=errors.iloc[1, :], c=c, marker='s', **style)
-    ax.scatter(x=xm, y=errors.iloc[2, :], c=c, marker='D', **style)
-    ax.scatter(x=xm, y=errors.iloc[3, :], c=c, marker='P', **style)
+    ax.scatter(x=xm, y=errors.iloc[1, :], c=c, marker='v', **style)
+    ax.scatter(x=xm, y=errors.iloc[2, :], c=c, marker='s', **style)
+    ax.scatter(x=xm, y=errors.iloc[3, :], c=c, marker='D', **style)
     # Plot invisible points for use in legend
     ax.scatter(x=-1, y=-1, c='k', marker='o', label=r'Valid. ep. \#1', **style)
-    ax.scatter(x=-1, y=-1, c='k', marker='s', label=r'Valid. ep. \#2', **style)
-    ax.scatter(x=-1, y=-1, c='k', marker='D', label=r'Valid. ep. \#3', **style)
-    ax.scatter(x=-1, y=-1, c='k', marker='P', label=r'Valid. ep. \#4', **style)
+    ax.scatter(x=-1, y=-1, c='k', marker='v', label=r'Valid. ep. \#2', **style)
+    ax.scatter(x=-1, y=-1, c='k', marker='s', label=r'Valid. ep. \#3', **style)
+    ax.scatter(x=-1, y=-1, c='k', marker='D', label=r'Valid. ep. \#4', **style)
     # Set labels
     ax.set_xlabel('Regression method')
     ax.set_ylabel('RMS Euclidean error (cm)')
     # Set limits and ticks
-    ax.set_ylim(0, 2.25)
+    ax.set_ylim(0, 1.9)
     ax.set_xlim(-0.5, 3.5)
     ax.set_xticks(x)
-    ax.set_xticklabels([errors.columns[i] for i in range(len(x))])
+    ax.set_xticklabels(
+        [errors.columns[i] for i in range(len(x))],
+        rotation=30,
+        rotation_mode='anchor',
+        ha='right',
+    )
     # Create legend
-    ax.legend(loc='upper right')
+    fig.legend(
+        [
+            ax.get_children()[2 + 4],
+            ax.get_children()[4 + 4],
+            ax.get_children()[3 + 4],
+            ax.get_children()[5 + 4],
+        ],
+        [
+            r'Valid. ep. \# 1',
+            r'Valid. ep. \# 3',
+            r'Valid. ep. \# 2',
+            r'Valid. ep. \# 4',
+        ],
+        loc='upper center',
+        ncol=2,
+        bbox_to_anchor=(0.5, 0),
+    )
     # Save targets
     for target in targets:
         fig.savefig(target, **SAVEFIG_PARAMS)
@@ -2408,4 +2452,5 @@ def _open_hydra_pickles(paths: List[pathlib.Path]) -> Dict[str, Any]:
         with open(path, 'rb') as f:
             opened_pickle = pickle.load(f)
         loaded_data[name] = opened_pickle
+    return loaded_data
     return loaded_data
