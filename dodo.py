@@ -1320,11 +1320,13 @@ def soft_robot_svd(dependencies: List[pathlib.Path],
     """Save soft robot SVD plot."""
     deps = _open_hydra_pickles(dependencies)
     edmd = deps['soft_robot__polynomial3_delay1__edmd']
+    tik = deps['soft_robot__polynomial3_delay1__tikhonov']
     srconst = deps['soft_robot__polynomial3_delay1__srconst_0999']
     hinf = deps['soft_robot__polynomial3_delay1__hinf']
     hinfw = deps['soft_robot__polynomial3_delay1__hinfw']
     # Calculate singular values of ``A`` and ``B``
     sv_A_edmd, sv_B_edmd = _calc_sv(edmd['matshow']['U'])
+    sv_A_tik, sv_B_tik = _calc_sv(tik['matshow']['U'])
     sv_A_srconst, sv_B_srconst = _calc_sv(srconst['matshow']['U'])
     sv_A_hinf, sv_B_hinf = _calc_sv(hinf['matshow']['U'])
     sv_A_hinfw, sv_B_hinfw = _calc_sv(hinfw['matshow']['U'])
@@ -1337,25 +1339,52 @@ def soft_robot_svd(dependencies: List[pathlib.Path],
         figsize=(10, 5),
     )
     # Plot singular values of ``A``
-    ax[0].semilogy(sv_A_edmd, marker='.', color=C['edmd'])
-    ax[0].semilogy(sv_A_srconst, marker='.', color=C['srconst'])
-    ax[0].semilogy(sv_A_hinf, marker='.', color=C['hinf'])
+    ax[0].semilogy(
+        sv_A_edmd,
+        label='No reg.',
+        marker='.',
+        color=C['edmd'],
+    )
+    ax[0].semilogy(
+        sv_A_tik,
+        label='Tikh. reg.',
+        marker='.',
+        color=C['tik'],
+    )
+    ax[0].semilogy(
+        sv_A_srconst,
+        label='A.S. constr.',
+        marker='.',
+        color=C['srconst'],
+    )
+    ax[0].semilogy(
+        sv_A_hinf,
+        label=f'{HINF} reg.',
+        marker='.',
+        color=C['hinf'],
+    )
     # Plot singular values of ``B``
     ax[1].semilogy(
         sv_B_edmd,
-        label='Extended DMD',
+        label='No reg.',
         marker='.',
         color=C['edmd'],
     )
     ax[1].semilogy(
+        sv_B_tik,
+        label='Tikh. reg.',
+        marker='.',
+        color=C['tik'],
+    )
+    ax[1].semilogy(
         sv_B_srconst,
-        label='A.S. constraint',
+        label='A.S. constr.',
         marker='.',
         color=C['srconst'],
     )
     ax[1].semilogy(
         sv_B_hinf,
-        label=f'{HINF} regularizer',
+        label=f'{HINF} reg.',
         marker='.',
         color=C['hinf'],
     )
@@ -1363,7 +1392,7 @@ def soft_robot_svd(dependencies: List[pathlib.Path],
     ax[0].set_ylim(10**-6, 10**4)
     ax[0].set_yticks([10**n for n in range(-6, 5)])
     # Create legend
-    ax[1].legend(loc='lower right')
+    ax[0].legend(loc='lower left')
     # Set axis labels
     ax[0].set_xlabel(r'$i$')
     ax[0].set_ylabel(r'$\sigma_i(\bf{A})$')
