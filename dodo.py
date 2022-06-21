@@ -1438,9 +1438,9 @@ def soft_robot_weights(dependencies: List[pathlib.Path],
     ax1.set_ylabel(r'$\bar{\sigma}\left({\bf G}(e^{j \theta})\right)$ (dB)')
     ax2.set_ylabel(r'Weight magnitude (dB)')
     # Set axis limits
-    b1 = 14  # Lower limit of right axis
+    b1 = 24  # Lower limit of right axis
     b2 = -4  # Lower limit of left axis
-    n = 16  # Number of dB in the axis limits
+    n = 12  # Number of dB in the axis limits
     ax1.set_ylim(b1, b1 + n)
     ax2.set_ylim(b2, b2 + n)
     # Set ticks, making sure they're the same for both axes
