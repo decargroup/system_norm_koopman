@@ -1680,25 +1680,25 @@ def soft_robot_dmdc_svd(dependencies: List[pathlib.Path],
     # Plot singular values of ``B``
     ax[1].semilogy(
         sv_B_srconst,
-        label='EDMD, A.S. constr.',
+        label='A.S. constr. EDMD',
         marker='.',
         color=C['srconst'],
     )
     ax[1].semilogy(
-        sv_B_hinf,
-        label=f'EDMD, {HINF} reg.',
-        marker='.',
-        color=C['hinf'],
-    )
-    ax[1].semilogy(
         sv_B_srconst_dmdc,
-        label='DMDc, A.S. constr.',
+        label='A.S. constr. DMDc',
         marker='.',
         color=C['srconst_dmdc'],
     )
     ax[1].semilogy(
+        sv_B_hinf,
+        label=f'{HINF} reg. EDMD',
+        marker='.',
+        color=C['hinf'],
+    )
+    ax[1].semilogy(
         sv_B_hinf_dmdc,
-        label=f'DMDc, {HINF} reg.',
+        label=f'{HINF} reg. DMDc',
         marker='.',
         color=C['hinf_dmdc'],
     )
@@ -1730,25 +1730,25 @@ def soft_robot_dmdc_bode(dependencies: List[pathlib.Path],
     ax.semilogx(
         srconst['bode']['f_plot'],
         srconst['bode']['mag_db'],
-        label='EDMD, A.S. constr.',
+        label='A.S. constr. EDMD',
         color=C['srconst'],
-    )
-    ax.semilogx(
-        hinf['bode']['f_plot'],
-        hinf['bode']['mag_db'],
-        label=f'EDMD, {HINF} reg.',
-        color=C['hinf'],
     )
     ax.semilogx(
         srconst_dmdc['bode']['f_plot'],
         srconst_dmdc['bode']['mag_db'],
-        label='DMDc, A.S. constr.',
+        label='A.S. constr. DMDc',
         color=C['srconst_dmdc'],
+    )
+    ax.semilogx(
+        hinf['bode']['f_plot'],
+        hinf['bode']['mag_db'],
+        label=f'{HINF} reg. EDMD',
+        color=C['hinf'],
     )
     ax.semilogx(
         hinf_dmdc['bode']['f_plot'],
         hinf_dmdc['bode']['mag_db'],
-        label=f'DMDc, {HINF} reg.',
+        label=f'{HINF} reg. DMDc',
         color=C['hinf_dmdc'],
     )
     # Create legend
@@ -1773,10 +1773,10 @@ def soft_robot_ram(dependencies: List[pathlib.Path],
     # Create dataframe
     stats = pandas.DataFrame({
         'label': [
-            'EDMD,\nA.S. constr.',
-            'DMDc,\nA.S. constr.',
-            f'EDMD,\n{HINF} reg.',
-            f'DMDc,\n{HINF} reg.',
+            'A.S. constr.\nEDMD',
+            'A.S. constr.\nDMDc',
+            f'{HINF} reg.\nEDMD',
+            f'{HINF} reg.\nDMDc',
         ],
         'ram': [
             srconst[0],
@@ -1807,6 +1807,17 @@ def soft_robot_ram(dependencies: List[pathlib.Path],
     # Set axis labels
     ax.set_xlabel('Regression method')
     ax.set_ylabel('Peak memory consumption (GiB)')
+    ax.set_xticklabels(
+        [
+            'A.S. constr.\nEDMD',
+            'A.S. constr.\nDMDc',
+            f'{HINF} reg.\nEDMD',
+            f'{HINF} reg.\nDMDc',
+        ],
+        rotation=30,
+        rotation_mode='anchor',
+        ha='right',
+    )
     # Save targets
     for target in targets:
         fig.savefig(target, **SAVEFIG_PARAMS)
@@ -1823,10 +1834,10 @@ def soft_robot_exec(dependencies: List[pathlib.Path],
     # Create dataframe
     stats = pandas.DataFrame({
         'label': [
-            'EDMD,\nA.S. constr.',
-            'DMDc,\nA.S. constr.',
-            f'EDMD,\n{HINF} reg.',
-            f'DMDc,\n{HINF} reg.',
+            'A.S. constr.\nEDMD',
+            'A.S. constr.\nDMDc',
+            f'{HINF} reg.\nEDMD',
+            f'{HINF} reg.\nDMDc',
         ],
         'time': [
             srconst[1],
@@ -1857,6 +1868,17 @@ def soft_robot_exec(dependencies: List[pathlib.Path],
     # Set axis labels
     ax.set_xlabel('Regression method')
     ax.set_ylabel('Execution time per iteration (min)')
+    ax.set_xticklabels(
+        [
+            'A.S. constr.\nEDMD',
+            'A.S. constr.\nDMDc',
+            f'{HINF} reg.\nEDMD',
+            f'{HINF} reg.\nDMDc',
+        ],
+        rotation=30,
+        rotation_mode='anchor',
+        ha='right',
+    )
     # Save targets
     for target in targets:
         fig.savefig(target, **SAVEFIG_PARAMS)
