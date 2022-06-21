@@ -96,15 +96,18 @@ OKABE_ITO = {
     'blue': (0.00, 0.45, 0.70),
     'vermillion': (0.80, 0.40, 0.00),
     'reddish purple': (0.80, 0.60, 0.70),
+    'grey': (0.60, 0.60, 0.60),
 }
 # Color mapping for plots
 C = {
     # Soft robot EDMD methods
-    'edmd': OKABE_ITO['orange'],
+    'edmd': OKABE_ITO['black'],
+    'tik': OKABE_ITO['orange'],
     'srconst': OKABE_ITO['sky blue'],
     'hinf': OKABE_ITO['bluish green'],
     'hinfw': OKABE_ITO['reddish purple'],
     'hinfw_weight': OKABE_ITO['blue'],
+    'true': OKABE_ITO['grey'],
     # Soft robot DMDc methods
     'srconst_dmdc': OKABE_ITO['vermillion'],
     'hinf_dmdc': OKABE_ITO['yellow'],
@@ -328,6 +331,8 @@ def task_plot() -> Generator[Dict[str, Any], None, None]:
         }
     for action in [
             soft_robot_error,
+            soft_robot_traj,
+            soft_robot_error_traj,
             soft_robot_eig,
             soft_robot_bode,
             soft_robot_svd,
@@ -684,6 +689,7 @@ def soft_robot_error(dependencies: List[pathlib.Path],
     """Save soft robot timeseries plot."""
     deps = _open_hydra_pickles(dependencies)
     edmd = deps['soft_robot__polynomial3_delay1__edmd']
+    tik = deps['soft_robot__polynomial3_delay1__tikhonov']
     srconst = deps['soft_robot__polynomial3_delay1__srconst_0999']
     hinf = deps['soft_robot__polynomial3_delay1__hinf']
     hinfw = deps['soft_robot__polynomial3_delay1__hinfw']
@@ -701,7 +707,7 @@ def soft_robot_error(dependencies: List[pathlib.Path],
         1,
         constrained_layout=True,
         sharex=True,
-        figsize=(5, 5),
+        figsize=(7, 5),
     )
     # Plot errors
     for i in range(2):
@@ -709,21 +715,28 @@ def soft_robot_error(dependencies: List[pathlib.Path],
             t,
             (edmd[series]['X_validation'][:n_t, i + 1]
              - edmd[series]['X_prediction'][:n_t, i + 1]),
-            label='Extended DMD',
+            label='No reg.',
             color=C['edmd'],
         )
         ax[i].plot(
             t,
             (edmd[series]['X_validation'][:n_t, i + 1]
+             - tik[series]['X_prediction'][:n_t, i + 1]),
+            label='Tikh. reg',
+            color=C['tik'],
+        )
+        ax[i].plot(
+            t,
+            (edmd[series]['X_validation'][:n_t, i + 1]
              - srconst[series]['X_prediction'][:n_t, i + 1]),
-            label='A.S. constraint',
+            label='A.S. constr.',
             color=C['srconst'],
         )
         ax[i].plot(
             t,
             (edmd[series]['X_validation'][:n_t, i + 1]
              - hinf[series]['X_prediction'][:n_t, i + 1]),
-            label=f'{HINF} regularizer',
+            label=f'{HINF} reg.',
             color=C['hinf'],
         )
     # Plot inputs
@@ -764,27 +777,344 @@ def soft_robot_error(dependencies: List[pathlib.Path],
     # Create legend
     fig.legend(
         [
-            ax[1].get_lines()[0],
-            ax[2].get_lines()[0],
-            ax[1].get_lines()[1],
-            ax[2].get_lines()[1],
-            ax[1].get_lines()[2],
-            ax[2].get_lines()[2],
+            ax[1].get_lines()[0],  # No
+            ax[2].get_lines()[0],  # u1
+            ax[1].get_lines()[1],  # Tik
+            ax[2].get_lines()[1],  # u2
+            ax[1].get_lines()[2],  # A.S.
+            ax[2].get_lines()[2],  # u3
+            ax[1].get_lines()[3],  # Hinf
         ],
         [
-            'EDMD',
+            'No reg.',
             r'$u_1(t)$',
-            'A.S. constr.',
+            'Tikh. reg.',
             r'$u_2(t)$',
-            f'{HINF} reg.',
+            'A.S. constr.',
             r'$u_3(t)$',
+            f'{HINF} reg.',
         ],
         loc='upper center',
-        ncol=3,
+        ncol=4,
         bbox_to_anchor=(0.5, 0),
     )
     # Align labels
     fig.align_labels()
+    # Save targets
+    for target in targets:
+        fig.savefig(target, **SAVEFIG_PARAMS)
+
+
+def soft_robot_traj(dependencies: List[pathlib.Path],
+                    targets: List[pathlib.Path]) -> None:
+    """Save soft robot trajectory plot."""
+    deps = _open_hydra_pickles(dependencies)
+    edmd = deps['soft_robot__polynomial3_delay1__edmd']
+    tik = deps['soft_robot__polynomial3_delay1__tikhonov']
+    srconst = deps['soft_robot__polynomial3_delay1__srconst_0999']
+    hinf = deps['soft_robot__polynomial3_delay1__hinf']
+    hinfw = deps['soft_robot__polynomial3_delay1__hinfw']
+    # Select timeseries to plot
+    series = 'timeseries_15.0'
+    # Calculate time arrays
+    t_step = 1 / edmd['bode']['f_samp']
+    n_t = int(edmd[series]['X_validation'].shape[0] * 0.5)
+    # Get state dimension
+    n_x = edmd[series]['X_prediction'].shape[1] - 1
+    # Create figure
+    fig, ax = plt.subplots(constrained_layout=True, figsize=(4, 5))
+    # Plot errors
+    ax.plot(
+        edmd[series]['X_prediction'][:n_t, 1],
+        edmd[series]['X_prediction'][:n_t, 2],
+        label='No reg.',
+        color=C['edmd'],
+    )
+    ax.plot(
+        tik[series]['X_prediction'][:n_t, 1],
+        tik[series]['X_prediction'][:n_t, 2],
+        label='Tikh. reg',
+        color=C['tik'],
+    )
+    ax.plot(
+        srconst[series]['X_prediction'][:n_t, 1],
+        srconst[series]['X_prediction'][:n_t, 2],
+        label='A.S. constr.',
+        color=C['srconst'],
+    )
+    ax.plot(
+        hinf[series]['X_prediction'][:n_t, 1],
+        hinf[series]['X_prediction'][:n_t, 2],
+        label=f'{HINF} reg.',
+        color=C['hinf'],
+    )
+    ax.plot(
+        edmd[series]['X_validation'][:n_t, 1],
+        edmd[series]['X_validation'][:n_t, 2],
+        label='True',
+        color=C['true'],
+        linestyle=':',
+        marker='X',
+        markevery=(n_t - 1),
+        markersize=10,
+        markeredgecolor='w',
+    )
+    ax.text(
+        edmd[series]['X_validation'][0, 1],
+        edmd[series]['X_validation'][0, 2] - 1.2,
+        r'$t = 0\,$s',
+        # color=C['true'],
+    )
+    ax.text(
+        edmd[series]['X_validation'][n_t, 1],
+        edmd[series]['X_validation'][n_t, 2] - 1.2,
+        rf'$t = {int(n_t * t_step)}\,$s',
+        # color=C['true'],
+    )
+    # Set axis labels
+    ax.set_xlabel(r'$x_1(t)$ (cm)')
+    ax.set_ylabel(r'$x_2(t)$ (cm)')
+    # Set axis ticks
+    ax.set_xticks([0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20])
+    ax.set_yticks([2, 4, 6, 8, 10, 12, 14, 16, 18])
+    # Set axis limits
+    ax.set_xlim(0, 20)
+    ax.set_ylim(4, 18)
+    # Set aspect ratio
+    ax.set_aspect('equal', 'box')
+    # Create legend
+    fig.legend(
+        [
+            ax.get_lines()[0],  # No
+            ax.get_lines()[2],  # A.S.
+            ax.get_lines()[4],  # True
+            ax.get_lines()[1],  # Tik
+            ax.get_lines()[3],  # Hinf
+        ],
+        [
+            'No reg.',
+            'A.S. constr.',
+            'True traj.',
+            'Tikh. reg.',
+            f'{HINF} reg.',
+        ],
+        loc='upper center',
+        ncol=2,
+        bbox_to_anchor=(0.5, 0.15),
+    )
+    # Save targets
+    for target in targets:
+        fig.savefig(target, **SAVEFIG_PARAMS)
+
+
+def soft_robot_error_traj(dependencies: List[pathlib.Path],
+                          targets: List[pathlib.Path]) -> None:
+    """Save soft robot timeseries plot and error trajectory plot."""
+    deps = _open_hydra_pickles(dependencies)
+    edmd = deps['soft_robot__polynomial3_delay1__edmd']
+    tik = deps['soft_robot__polynomial3_delay1__tikhonov']
+    srconst = deps['soft_robot__polynomial3_delay1__srconst_0999']
+    hinf = deps['soft_robot__polynomial3_delay1__hinf']
+    hinfw = deps['soft_robot__polynomial3_delay1__hinfw']
+    # Select timeseries to plot
+    series = 'timeseries_15.0'
+    # Calculate time arrays
+    t_step = 1 / edmd['bode']['f_samp']
+    n_t = edmd[series]['X_validation'].shape[0]
+    t = np.arange(n_t) * t_step
+    # Get state dimension
+    n_x = edmd[series]['X_prediction'].shape[1] - 1
+
+    fig = plt.figure(constrained_layout=True, figsize=(10, 5))
+    gs = matplotlib.gridspec.GridSpec(3, 2, figure=fig)
+    ax0 = fig.add_subplot(gs[0, 0])
+    ax1 = fig.add_subplot(gs[1, 0])
+    ax2 = fig.add_subplot(gs[2, 0])
+    ax3 = fig.add_subplot(gs[:, 1])
+
+    ax0.plot(
+        t,
+        (edmd[series]['X_validation'][:n_t, 1]
+         - edmd[series]['X_prediction'][:n_t, 1]),
+        label='No reg.',
+        color=C['edmd'],
+    )
+    ax0.plot(
+        t,
+        (edmd[series]['X_validation'][:n_t, 1]
+         - tik[series]['X_prediction'][:n_t, 1]),
+        label='Tikh. reg',
+        color=C['tik'],
+    )
+    ax0.plot(
+        t,
+        (edmd[series]['X_validation'][:n_t, 1]
+         - srconst[series]['X_prediction'][:n_t, 1]),
+        label='A.S. constr.',
+        color=C['srconst'],
+    )
+    ax0.plot(
+        t,
+        (edmd[series]['X_validation'][:n_t, 1]
+         - hinf[series]['X_prediction'][:n_t, 1]),
+        label=f'{HINF} reg.',
+        color=C['hinf'],
+    )
+    ax1.plot(
+        t,
+        (edmd[series]['X_validation'][:n_t, 2]
+         - edmd[series]['X_prediction'][:n_t, 2]),
+        label='No reg.',
+        color=C['edmd'],
+    )
+    ax1.plot(
+        t,
+        (edmd[series]['X_validation'][:n_t, 2]
+         - tik[series]['X_prediction'][:n_t, 2]),
+        label='Tikh. reg',
+        color=C['tik'],
+    )
+    ax1.plot(
+        t,
+        (edmd[series]['X_validation'][:n_t, 2]
+         - srconst[series]['X_prediction'][:n_t, 2]),
+        label='A.S. constr.',
+        color=C['srconst'],
+    )
+    ax1.plot(
+        t,
+        (edmd[series]['X_validation'][:n_t, 2]
+         - hinf[series]['X_prediction'][:n_t, 2]),
+        label=f'{HINF} reg.',
+        color=C['hinf'],
+    )
+    ax2.plot(
+        t,
+        edmd[series]['X_validation'][:n_t, 3],
+        '--',
+        color=C['u1'],
+        label=r'$u_1(t)$',
+    )
+    ax2.plot(
+        t,
+        edmd[series]['X_validation'][:n_t, 4],
+        '--',
+        color=C['u2'],
+        label=r'$u_2(t)$',
+    )
+    ax2.plot(
+        t,
+        edmd[series]['X_validation'][:n_t, 5],
+        '--',
+        color=C['u3'],
+        label=r'$u_3(t)$',
+    )
+    # Set axis labels
+    ax2.set_xlabel(r'$t$ (s)')
+    ax0.set_ylabel(r'$\Delta x_1(t)$ (cm)')
+    ax1.set_ylabel(r'$\Delta x_2(t)$ (cm)')
+    ax2.set_ylabel(r'${\bf u}(t)$ (V)')
+    # Set axis limits
+    ax0.set_ylim(-5, 5)
+    ax1.set_ylim(-5, 5)
+    ax2.set_ylim(-1, 9)
+    # Set axis ticks
+    ax0.set_yticks([-4, -2, 0, 2, 4])
+    ax1.set_yticks([-4, -2, 0, 2, 4])
+    ax2.set_yticks([0, 2, 4, 6, 8])
+    ax0.set_xticks([0, 10, 20, 30, 40, 50])
+    ax1.set_xticks([0, 10, 20, 30, 40, 50])
+    ax2.set_xticks([0, 10, 20, 30, 40, 50])
+    ax0.set_xticklabels([])
+    ax1.set_xticklabels([])
+
+    n_t_traj = int(edmd[series]['X_validation'].shape[0] * 0.5)
+    ax3.plot(
+        edmd[series]['X_prediction'][:n_t_traj, 1],
+        edmd[series]['X_prediction'][:n_t_traj, 2],
+        label='No reg.',
+        color=C['edmd'],
+    )
+    ax3.plot(
+        tik[series]['X_prediction'][:n_t_traj, 1],
+        tik[series]['X_prediction'][:n_t_traj, 2],
+        label='Tikh. reg',
+        color=C['tik'],
+    )
+    ax3.plot(
+        srconst[series]['X_prediction'][:n_t_traj, 1],
+        srconst[series]['X_prediction'][:n_t_traj, 2],
+        label='A.S. constr.',
+        color=C['srconst'],
+    )
+    ax3.plot(
+        hinf[series]['X_prediction'][:n_t_traj, 1],
+        hinf[series]['X_prediction'][:n_t_traj, 2],
+        label=f'{HINF} reg.',
+        color=C['hinf'],
+    )
+    ax3.plot(
+        edmd[series]['X_validation'][:n_t_traj, 1],
+        edmd[series]['X_validation'][:n_t_traj, 2],
+        label='True',
+        color=C['true'],
+        linestyle=':',
+        marker='X',
+        markevery=(n_t_traj - 1),
+        markersize=10,
+        markeredgecolor='w',
+    )
+    ax3.text(
+        edmd[series]['X_validation'][0, 1],
+        edmd[series]['X_validation'][0, 2] - 1.2,
+        r'$t = 0\,$s',
+    )
+    ax3.text(
+        edmd[series]['X_validation'][n_t_traj, 1],
+        edmd[series]['X_validation'][n_t_traj, 2] - 1.2,
+        rf'$t = {int(n_t_traj * t_step)}\,$s',
+    )
+    # Set axis labels
+    ax3.set_xlabel(r'$x_1(t)$ (cm)')
+    ax3.set_ylabel(r'$x_2(t)$ (cm)')
+    # Set aspect ratio
+    ax3.set_aspect('equal', 'box')
+    # Set axis ticks
+    ax3.set_xticks([0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20])
+    ax3.set_yticks([0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20])
+    # Set axis limits
+    ax3.set_xlim(0, 20)
+    ax3.set_ylim(0, 20)
+
+    # Create legend
+    fig.legend(
+        [
+            ax1.get_lines()[0],  # No
+            ax2.get_lines()[0],  # u1
+            ax1.get_lines()[1],  # Tik
+            ax2.get_lines()[1],  # u2
+            ax1.get_lines()[2],  # A.S.
+            ax2.get_lines()[2],  # u3
+            ax1.get_lines()[3],  # Hinf
+            ax3.get_lines()[4],  # True
+        ],
+        [
+            'No reg.',
+            r'$u_1(t)$',
+            'Tikh. reg.',
+            r'$u_2(t)$',
+            'A.S. constr.',
+            r'$u_3(t)$',
+            f'{HINF} reg.',
+            r'Valid. ep. \#3',
+        ],
+        loc='upper center',
+        ncol=4,
+        bbox_to_anchor=(0.5, 0),
+    )
+    # Align labels
+    fig.align_labels()
+
     # Save targets
     for target in targets:
         fig.savefig(target, **SAVEFIG_PARAMS)
@@ -795,6 +1125,7 @@ def soft_robot_eig(dependencies: List[pathlib.Path],
     """Save soft robot eigenvalue plot."""
     deps = _open_hydra_pickles(dependencies)
     edmd = deps['soft_robot__polynomial3_delay1__edmd']
+    tik = deps['soft_robot__polynomial3_delay1__tikhonov']
     srconst = deps['soft_robot__polynomial3_delay1__srconst_0999']
     hinf = deps['soft_robot__polynomial3_delay1__hinf']
     hinfw = deps['soft_robot__polynomial3_delay1__hinfw']
@@ -817,7 +1148,15 @@ def soft_robot_eig(dependencies: List[pathlib.Path],
         np.absolute(edmd['eigenvalues']['eigv']),
         color=C['edmd'],
         marker='o',
-        label=r'Extended DMD',
+        label=r'No reg.',
+        **style,
+    )
+    ax.scatter(
+        np.angle(tik['eigenvalues']['eigv']),
+        np.absolute(tik['eigenvalues']['eigv']),
+        color=C['tik'],
+        marker='v',
+        label=r'Tikh. reg.',
         **style,
     )
     ax.scatter(
@@ -825,7 +1164,7 @@ def soft_robot_eig(dependencies: List[pathlib.Path],
         np.absolute(srconst['eigenvalues']['eigv']),
         color=C['srconst'],
         marker='s',
-        label=r'A.S. constraint',
+        label=r'A.S. constr.',
         **style,
     )
     ax.scatter(
@@ -833,7 +1172,7 @@ def soft_robot_eig(dependencies: List[pathlib.Path],
         np.absolute(hinf['eigenvalues']['eigv']),
         color=C['hinf'],
         marker='D',
-        label=f'{HINF} regularizer',
+        label=f'{HINF} reg.',
         **style,
     )
     # Create sub-axes for zoomed plot
@@ -851,7 +1190,15 @@ def soft_robot_eig(dependencies: List[pathlib.Path],
         np.absolute(edmd['eigenvalues']['eigv']),
         color=C['edmd'],
         marker='o',
-        label=r'Extended DMD',
+        label=r'No reg.',
+        **style,
+    )
+    axins.scatter(
+        np.angle(tik['eigenvalues']['eigv']),
+        np.absolute(tik['eigenvalues']['eigv']),
+        color=C['tik'],
+        marker='v',
+        label=r'Tikh reg.',
         **style,
     )
     axins.scatter(
@@ -859,7 +1206,7 @@ def soft_robot_eig(dependencies: List[pathlib.Path],
         np.absolute(srconst['eigenvalues']['eigv']),
         color=C['srconst'],
         marker='s',
-        label=r'A.S. constraint',
+        label=r'A.S. constr.',
         **style,
     )
     axins.scatter(
@@ -867,7 +1214,7 @@ def soft_robot_eig(dependencies: List[pathlib.Path],
         np.absolute(hinf['eigenvalues']['eigv']),
         color=C['hinf'],
         marker='D',
-        label=f'{HINF} regularizer',
+        label=f'{HINF} reg.',
         **style,
     )
     # Border line width and color
@@ -909,13 +1256,13 @@ def soft_robot_eig(dependencies: List[pathlib.Path],
         },
     )
     # Create legend
-    ax.legend(loc='lower left', ncol=1)
+    axins.legend(loc='upper center', ncol=2, bbox_to_anchor=(0.2, 0.2))
     # Set axis limits and ticks
     ax.set_rlim(0, 2.5)
     ax.set_yticks([0, 0.5, 1, 1.5, 2, 2.5])
     # Set axis labels
     ax.set_xlabel(r'$\mathrm{Re}\{\lambda_i\}$')
-    ax.set_ylabel(r'$\mathrm{Im}\{\lambda_i\}$', labelpad=25)
+    ax.set_ylabel(r'$\mathrm{Im}\{\lambda_i\}$', labelpad=30)
     # Save targets
     for target in targets:
         fig.savefig(target, **SAVEFIG_PARAMS)
@@ -926,6 +1273,7 @@ def soft_robot_bode(dependencies: List[pathlib.Path],
     """Save soft robot bode plot."""
     deps = _open_hydra_pickles(dependencies)
     edmd = deps['soft_robot__polynomial3_delay1__edmd']
+    tik = deps['soft_robot__polynomial3_delay1__tikhonov']
     srconst = deps['soft_robot__polynomial3_delay1__srconst_0999']
     hinf = deps['soft_robot__polynomial3_delay1__hinf']
     hinfw = deps['soft_robot__polynomial3_delay1__hinfw']
@@ -935,19 +1283,25 @@ def soft_robot_bode(dependencies: List[pathlib.Path],
     ax.semilogx(
         edmd['bode']['f_plot'],
         edmd['bode']['mag_db'],
-        label='Extended DMD',
+        label='No reg.',
         color=C['edmd'],
+    )
+    ax.semilogx(
+        tik['bode']['f_plot'],
+        tik['bode']['mag_db'],
+        label='Tikh. reg.',
+        color=C['tik'],
     )
     ax.semilogx(
         srconst['bode']['f_plot'],
         srconst['bode']['mag_db'],
-        label='A.S. constraint',
+        label='A.S. constr.',
         color=C['srconst'],
     )
     ax.semilogx(
         hinf['bode']['f_plot'],
         hinf['bode']['mag_db'],
-        label=f'{HINF} regularizer',
+        label=f'{HINF} reg.',
         color=C['hinf'],
     )
     # Create legend
@@ -955,7 +1309,7 @@ def soft_robot_bode(dependencies: List[pathlib.Path],
     # Set axis labels and limits
     ax.set_xlabel(r'$f$ (Hz)')
     ax.set_ylabel(r'$\bar{\sigma}\left({\bf G}(e^{j \theta})\right)$ (dB)')
-    ax.set_ylim(10, 150)
+    ax.set_ylim(10, 170)
     # Save targets
     for target in targets:
         fig.savefig(target, **SAVEFIG_PARAMS)
