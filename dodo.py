@@ -50,7 +50,7 @@ from scipy import io, linalg
 # --------------------------------------------------------------------------- #
 
 # Configure ``doit`` to run plot tasks by default
-DOIT_CONFIG = {'default_tasks': ['plot']}
+DOIT_CONFIG = {'default_tasks': ['table', 'plot']}
 
 # Directory containing ``dodo.py``
 WORKING_DIR = pathlib.Path(__file__).parent.resolve()
@@ -275,6 +275,32 @@ def task_profile() -> Generator[Dict[str, Any], None, None]:
             'clean':
             [doit.task.clean_targets, (shutil.rmtree, [exp_dir, True])],
         }
+
+
+def task_table() -> Dict[str, Any]:
+    """Generate table of results."""
+    return {
+        'actions': [table],
+        'file_dep': [
+            BUILD_DIRS['hydra_outputs'].joinpath(
+                'soft_robot__polynomial3_delay1__edmd').joinpath(HYDRA_PICKLE),
+            BUILD_DIRS['hydra_outputs'].joinpath(
+                'soft_robot__polynomial3_delay1__tikhonov').joinpath(
+                    HYDRA_PICKLE),
+            BUILD_DIRS['hydra_outputs'].joinpath(
+                'soft_robot__polynomial3_delay1__srconst_0999').joinpath(
+                    HYDRA_PICKLE),
+            BUILD_DIRS['hydra_outputs'].joinpath(
+                'soft_robot__polynomial3_delay1__hinf').joinpath(HYDRA_PICKLE),
+            BUILD_DIRS['hydra_outputs'].joinpath(
+                'soft_robot__polynomial3_delay1__hinfw').joinpath(
+                    HYDRA_PICKLE),
+        ],
+        'targets': [BUILD_DIRS['figures'].joinpath('table.tex')],
+        'clean':
+        True,
+        'uptodate': [False],
+    }
 
 
 def task_plot() -> Generator[Dict[str, Any], None, None]:
@@ -542,6 +568,48 @@ def pickle_soft_robot_dataset(dependencies: List[pathlib.Path],
     # Save pickle
     with open(targets[0], 'wb') as f:
         pickle.dump(output_dict, f)
+
+
+def table(dependencies: List[pathlib.Path],
+          targets: List[pathlib.Path]) -> None:
+    """Create table summarizing results."""
+    deps = _open_hydra_pickles(dependencies)
+    edmd = deps['soft_robot__polynomial3_delay1__edmd']
+    tikhonov = deps['soft_robot__polynomial3_delay1__tikhonov']
+    srconst = deps['soft_robot__polynomial3_delay1__srconst_0999']
+    hinf = deps['soft_robot__polynomial3_delay1__hinf']
+    hinfw = deps['soft_robot__polynomial3_delay1__hinfw']
+    # Calculate condition numbers
+    cond_A_edmd, cond_B_edmd, _ = _calc_cond(edmd['matshow']['U'])
+    cond_A_tik, cond_B_tik, _ = _calc_cond(tikhonov['matshow']['U'])
+    cond_A_srconst, cond_B_srconst, _ = _calc_cond(srconst['matshow']['U'])
+    cond_A_hinf, cond_B_hinf, _ = _calc_cond(hinf['matshow']['U'])
+    cond_A_hinfw, cond_B_hinfw, _ =  _calc_cond(hinfw['matshow']['U'])
+    # Create table
+    opts = 'exponent-mode=scientific, round-mode=places, round-precision=2'
+    table = rf'''\begin{{table}}[htbp]
+    \caption{{}}
+    \label{{tab:cond}}
+    \centering
+    \def\arraystretch{{1.1}}
+    \begin{{tabularx}}{{\linewidth}}{{llll}}
+        \toprule
+        \tabhead{{regression method}} & \tabhead{{$\mathrm{{cond}}(\mbf{{A}})$}} & \tabhead{{$\mathrm{{cond}}(\mbf{{B}})$}} & \tabhead{{asymptotic stability}} \\
+        no regularization & \num[{opts}]{{{cond_A_edmd}}} & \num[{opts}]{{{cond_B_edmd}}} & no \\
+        \midrule
+        Tikhonov regularization & \num[{opts}]{{{cond_A_tik}}} & \num[{opts}]{{{cond_B_tik}}} & no \\
+        \midrule
+        asymptotic stability constraint & \num[{opts}]{{{cond_A_srconst}}} & \num[{opts}]{{{cond_B_srconst}}} & yes \\
+        \midrule
+        {HINF} regularization & \num[{opts}]{{{cond_A_hinf}}} & \num[{opts}]{{{cond_B_hinf}}} & yes \\
+        \midrule
+        weighted {HINF} regularization & \num[{opts}]{{{cond_A_hinfw}}} & \num[{opts}]{{{cond_B_hinfw}}} & yes \\
+        \botrule
+    \end{{tabularx}}
+\end{{table}}'''  # noqa: E501
+    for target in targets:
+        with open(target, 'w') as f:
+            f.write(table)
 
 
 def faster_error(dependencies: List[pathlib.Path],
@@ -1490,7 +1558,7 @@ def soft_robot_scatter_by_method(dependencies: List[pathlib.Path],
     means = errors.mean()
     std = errors.std()
     # Create figure
-    fig, ax = plt.subplots(constrained_layout=True, figsize=(5, 5))
+    fig, ax = plt.subplots(constrained_layout=True, figsize=(7.5, 5))
     # Column colors
     c = [C['edmd'], C['tik'], C['srconst'], C['hinf'], C['hinfw']]
     # Mean and shifted tick locations
@@ -1726,7 +1794,11 @@ def soft_robot_dmdc_bode(dependencies: List[pathlib.Path],
     hinf = deps['soft_robot__polynomial3_delay1__hinf']
     hinf_dmdc = deps['soft_robot__polynomial3_delay1__hinf_dmdc']
     # Create figure
-    fig, ax = plt.subplots(constrained_layout=True, figsize=(5, 5))
+    fig, ax = plt.subplots(
+        constrained_layout=True,
+        # Stupid hack to make image size match with DMDc scatter plot
+        figsize=(5, 5 * (544 / 511)),
+    )
     ax.semilogx(
         srconst['bode']['f_plot'],
         srconst['bode']['mag_db'],
@@ -1752,11 +1824,27 @@ def soft_robot_dmdc_bode(dependencies: List[pathlib.Path],
         color=C['hinf_dmdc'],
     )
     # Create legend
-    ax.legend(loc='upper right')
+    fig.legend(
+        [
+            ax.get_lines()[0],
+            ax.get_lines()[2],
+            ax.get_lines()[1],
+            ax.get_lines()[3],
+        ],
+        [
+            'A.S. constr. EDMD',
+            f'{HINF} reg. EDMD',
+            'A.S. constr. DMDc',
+            f'{HINF} reg. DMDc',
+        ],
+        loc='upper center',
+        ncol=2,
+        bbox_to_anchor=(0.5, 0),
+    )
     # Set axis labels and limits
     ax.set_xlabel('$f$ (Hz)')
     ax.set_ylabel(r'$\bar{\sigma}\left({\bf G}(e^{j \theta})\right)$ (dB)')
-    ax.set_ylim(10, 150)
+    ax.set_ylim(10, 110)
     # Save targets
     for target in targets:
         fig.savefig(target, **SAVEFIG_PARAMS)
@@ -2375,6 +2463,30 @@ def _calc_sv(U: np.ndarray,
     sv_A = linalg.svdvals(A)
     sv_B = linalg.svdvals(B)
     return (sv_A[sv_A > tol], sv_B[sv_B > tol])
+
+
+def _calc_cond(U: np.ndarray) -> Tuple[float, float, float]:
+    """Calculate condition numbers of Koopman matrix.
+
+    Parameters
+    ----------
+    U : np.ndarray
+        Koopman matrix.
+
+    Returns
+    -------
+    Tuple[float, float, float]
+        Condition numbers of ``A``, ``B``, and ``U``.
+    """
+    nx = U.shape[0]
+    # Extract ``A`` and ``B``
+    A = U[:, :nx]
+    B = U[:, nx:]
+    # Compute SVDs
+    cond_A = np.linalg.cond(A)
+    cond_B = np.linalg.cond(B)
+    cond_U = np.linalg.cond(U)
+    return (cond_A, cond_B, cond_U)
 
 
 def _calc_rmse(loaded_pickle: Dict[str, Any]) -> List[float]:
