@@ -1509,7 +1509,7 @@ def soft_robot_weights(dependencies: List[pathlib.Path],
     # Set axis limits
     b1 = 24  # Lower limit of right axis
     b2 = -4  # Lower limit of left axis
-    n = 12  # Number of dB in the axis limits
+    n = 18  # Number of dB in the axis limits
     ax1.set_ylim(b1, b1 + n)
     ax2.set_ylim(b2, b2 + n)
     # Set ticks, making sure they're the same for both axes
