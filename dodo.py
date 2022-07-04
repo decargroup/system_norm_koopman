@@ -296,6 +296,7 @@ def task_table() -> Dict[str, Any]:
                 'soft_robot__polynomial3_delay1__hinfw').joinpath(
                     HYDRA_PICKLE),
         ],
+        'task_dep': ['directory:build/figures'],
         'targets': [BUILD_DIRS['figures'].joinpath('table.tex')],
         'clean':
         True,
