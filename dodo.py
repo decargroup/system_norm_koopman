@@ -1175,7 +1175,7 @@ def soft_robot_error_traj(dependencies: List[pathlib.Path],
             'A.S. constr.',
             r'$u_3(t)$',
             f'{HINF} reg.',
-            r'Valid. ep. \#3',
+            r'Test ep. \#3',
         ],
         loc='upper center',
         ncol=4,
@@ -1590,10 +1590,10 @@ def soft_robot_scatter_by_method(dependencies: List[pathlib.Path],
     ax.scatter(x=xm, y=errors.iloc[2, :], c=c, marker='s', **style)
     ax.scatter(x=xm, y=errors.iloc[3, :], c=c, marker='D', **style)
     # Plot invisible points for use in legend
-    ax.scatter(x=-1, y=-1, c='k', marker='o', label=r'Valid. ep. \#1', **style)
-    ax.scatter(x=-1, y=-1, c='k', marker='v', label=r'Valid. ep. \#2', **style)
-    ax.scatter(x=-1, y=-1, c='k', marker='s', label=r'Valid. ep. \#3', **style)
-    ax.scatter(x=-1, y=-1, c='k', marker='D', label=r'Valid. ep. \#4', **style)
+    ax.scatter(x=-1, y=-1, c='k', marker='o', label=r'Test ep. \#1', **style)
+    ax.scatter(x=-1, y=-1, c='k', marker='v', label=r'Test ep. \#2', **style)
+    ax.scatter(x=-1, y=-1, c='k', marker='s', label=r'Test ep. \#3', **style)
+    ax.scatter(x=-1, y=-1, c='k', marker='D', label=r'Test ep. \#4', **style)
     # Set labels
     ax.set_xlabel('Regression method')
     ax.set_ylabel('RMS Euclidean error (cm)')
@@ -1616,10 +1616,10 @@ def soft_robot_scatter_by_method(dependencies: List[pathlib.Path],
             ax.get_children()[5],
         ],
         [
-            r'Valid. ep. \# 1',
-            r'Valid. ep. \# 3',
-            r'Valid. ep. \# 2',
-            r'Valid. ep. \# 4',
+            r'Test ep. \# 1',
+            r'Test ep. \# 3',
+            r'Test ep. \# 2',
+            r'Test ep. \# 4',
         ],
         loc='upper center',
         ncol=2,
@@ -1679,10 +1679,10 @@ def soft_robot_scatter_dmdc(dependencies: List[pathlib.Path],
     ax.scatter(x=xm, y=errors.iloc[2, :], c=c, marker='s', **style)
     ax.scatter(x=xm, y=errors.iloc[3, :], c=c, marker='D', **style)
     # Plot invisible points for use in legend
-    ax.scatter(x=-1, y=-1, c='k', marker='o', label=r'Valid. ep. \#1', **style)
-    ax.scatter(x=-1, y=-1, c='k', marker='v', label=r'Valid. ep. \#2', **style)
-    ax.scatter(x=-1, y=-1, c='k', marker='s', label=r'Valid. ep. \#3', **style)
-    ax.scatter(x=-1, y=-1, c='k', marker='D', label=r'Valid. ep. \#4', **style)
+    ax.scatter(x=-1, y=-1, c='k', marker='o', label=r'Test ep. \#1', **style)
+    ax.scatter(x=-1, y=-1, c='k', marker='v', label=r'Test ep. \#2', **style)
+    ax.scatter(x=-1, y=-1, c='k', marker='s', label=r'Test ep. \#3', **style)
+    ax.scatter(x=-1, y=-1, c='k', marker='D', label=r'Test ep. \#4', **style)
     # Set labels
     ax.set_xlabel('Regression method')
     ax.set_ylabel('RMS Euclidean error (cm)')
@@ -1705,10 +1705,10 @@ def soft_robot_scatter_dmdc(dependencies: List[pathlib.Path],
             ax.get_children()[5 + 4],
         ],
         [
-            r'Valid. ep. \# 1',
-            r'Valid. ep. \# 3',
-            r'Valid. ep. \# 2',
-            r'Valid. ep. \# 4',
+            r'Test ep. \# 1',
+            r'Test ep. \# 3',
+            r'Test ep. \# 2',
+            r'Test ep. \# 4',
         ],
         loc='upper center',
         ncol=2,
