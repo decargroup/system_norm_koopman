@@ -50,7 +50,7 @@ from scipy import io, linalg
 # --------------------------------------------------------------------------- #
 
 # Configure ``doit`` to run plot tasks by default
-DOIT_CONFIG = {'default_tasks': ['plot']}
+DOIT_CONFIG = {'default_tasks': ['table', 'plot']}
 
 # Directory containing ``dodo.py``
 WORKING_DIR = pathlib.Path(__file__).parent.resolve()
@@ -96,15 +96,18 @@ OKABE_ITO = {
     'blue': (0.00, 0.45, 0.70),
     'vermillion': (0.80, 0.40, 0.00),
     'reddish purple': (0.80, 0.60, 0.70),
+    'grey': (0.60, 0.60, 0.60),
 }
 # Color mapping for plots
 C = {
     # Soft robot EDMD methods
-    'edmd': OKABE_ITO['orange'],
+    'edmd': OKABE_ITO['black'],
+    'tik': OKABE_ITO['orange'],
     'srconst': OKABE_ITO['sky blue'],
     'hinf': OKABE_ITO['bluish green'],
     'hinfw': OKABE_ITO['reddish purple'],
     'hinfw_weight': OKABE_ITO['blue'],
+    'true': OKABE_ITO['grey'],
     # Soft robot DMDc methods
     'srconst_dmdc': OKABE_ITO['vermillion'],
     'hinf_dmdc': OKABE_ITO['yellow'],
@@ -129,7 +132,8 @@ C = {
     'tikz_bode': cmcrameri.cm.batlow(0),
 }
 # Global Matplotlib settings
-if matplotlib.checkdep_usetex(True):  # Use LaTeX only if available
+usetex = matplotlib.checkdep_usetex(True)  # Use LaTeX only if available
+if usetex:
     plt.rc('text', usetex=True)
     plt.rc('font', family='serif', size=15)
     plt.rc('text.latex', preamble=r'\usepackage{amsmath}')
@@ -273,6 +277,33 @@ def task_profile() -> Generator[Dict[str, Any], None, None]:
         }
 
 
+def task_table() -> Dict[str, Any]:
+    """Generate table of results."""
+    return {
+        'actions': [table],
+        'file_dep': [
+            BUILD_DIRS['hydra_outputs'].joinpath(
+                'soft_robot__polynomial3_delay1__edmd').joinpath(HYDRA_PICKLE),
+            BUILD_DIRS['hydra_outputs'].joinpath(
+                'soft_robot__polynomial3_delay1__tikhonov').joinpath(
+                    HYDRA_PICKLE),
+            BUILD_DIRS['hydra_outputs'].joinpath(
+                'soft_robot__polynomial3_delay1__srconst_0999').joinpath(
+                    HYDRA_PICKLE),
+            BUILD_DIRS['hydra_outputs'].joinpath(
+                'soft_robot__polynomial3_delay1__hinf').joinpath(HYDRA_PICKLE),
+            BUILD_DIRS['hydra_outputs'].joinpath(
+                'soft_robot__polynomial3_delay1__hinfw').joinpath(
+                    HYDRA_PICKLE),
+        ],
+        'task_dep': ['directory:build/figures'],
+        'targets': [BUILD_DIRS['figures'].joinpath('table.tex')],
+        'clean':
+        True,
+        'uptodate': [False],
+    }
+
+
 def task_plot() -> Generator[Dict[str, Any], None, None]:
     """Plot a figure."""
     for action in [
@@ -310,6 +341,8 @@ def task_plot() -> Generator[Dict[str, Any], None, None]:
                 BUILD_DIRS['hydra_outputs'].joinpath(
                     'faster__polynomial2__edmd').joinpath(HYDRA_PICKLE),
                 BUILD_DIRS['hydra_outputs'].joinpath(
+                    'faster__polynomial2__tikhonov').joinpath(HYDRA_PICKLE),
+                BUILD_DIRS['hydra_outputs'].joinpath(
                     'faster__polynomial2__srconst_1').joinpath(HYDRA_PICKLE),
                 BUILD_DIRS['hydra_outputs'].joinpath(
                     'faster__polynomial2__srconst_099').joinpath(HYDRA_PICKLE),
@@ -325,6 +358,8 @@ def task_plot() -> Generator[Dict[str, Any], None, None]:
         }
     for action in [
             soft_robot_error,
+            soft_robot_traj,
+            soft_robot_error_traj,
             soft_robot_eig,
             soft_robot_bode,
             soft_robot_svd,
@@ -338,6 +373,9 @@ def task_plot() -> Generator[Dict[str, Any], None, None]:
             'file_dep': [
                 BUILD_DIRS['hydra_outputs'].joinpath(
                     'soft_robot__polynomial3_delay1__edmd').joinpath(
+                        HYDRA_PICKLE),
+                BUILD_DIRS['hydra_outputs'].joinpath(
+                    'soft_robot__polynomial3_delay1__tikhonov').joinpath(
                         HYDRA_PICKLE),
                 BUILD_DIRS['hydra_outputs'].joinpath(
                     'soft_robot__polynomial3_delay1__srconst_0999').joinpath(
@@ -533,6 +571,48 @@ def pickle_soft_robot_dataset(dependencies: List[pathlib.Path],
         pickle.dump(output_dict, f)
 
 
+def table(dependencies: List[pathlib.Path],
+          targets: List[pathlib.Path]) -> None:
+    """Create table summarizing results."""
+    deps = _open_hydra_pickles(dependencies)
+    edmd = deps['soft_robot__polynomial3_delay1__edmd']
+    tikhonov = deps['soft_robot__polynomial3_delay1__tikhonov']
+    srconst = deps['soft_robot__polynomial3_delay1__srconst_0999']
+    hinf = deps['soft_robot__polynomial3_delay1__hinf']
+    hinfw = deps['soft_robot__polynomial3_delay1__hinfw']
+    # Calculate condition numbers
+    cond_A_edmd, cond_B_edmd, _ = _calc_cond(edmd['matshow']['U'])
+    cond_A_tik, cond_B_tik, _ = _calc_cond(tikhonov['matshow']['U'])
+    cond_A_srconst, cond_B_srconst, _ = _calc_cond(srconst['matshow']['U'])
+    cond_A_hinf, cond_B_hinf, _ = _calc_cond(hinf['matshow']['U'])
+    cond_A_hinfw, cond_B_hinfw, _ =  _calc_cond(hinfw['matshow']['U'])
+    # Create table
+    opts = 'exponent-mode=scientific, round-mode=places, round-precision=2'
+    table = rf'''\begin{{table}}[htbp]
+    \caption{{}}\label{{tab:cond}}
+    \centering
+    \setlength{{\tabcolsep}}{{12pt}}
+    \def\arraystretch{{1.1}}
+    \begin{{tabularx}}{{\linewidth}}{{llll}}
+        \toprule
+        \tabhead{{regression method}} & \tabhead{{$\mathrm{{cond}}(\mbf{{A}})$}} & \tabhead{{$\mathrm{{cond}}(\mbf{{B}})$}} & \tabhead{{asymptotic stability}} \\
+        no regularization & \num[{opts}]{{{cond_A_edmd}}} & \num[{opts}]{{{cond_B_edmd}}} & no \\
+        \midrule
+        Tikhonov regularization & \num[{opts}]{{{cond_A_tik}}} & \num[{opts}]{{{cond_B_tik}}} & no \\
+        \midrule
+        asymptotic stability constraint & \num[{opts}]{{{cond_A_srconst}}} & \num[{opts}]{{{cond_B_srconst}}} & yes \\
+        \midrule
+        {HINF} regularization & \num[{opts}]{{{cond_A_hinf}}} & \num[{opts}]{{{cond_B_hinf}}} & yes \\
+        \midrule
+        weighted {HINF} regularization & \num[{opts}]{{{cond_A_hinfw}}} & \num[{opts}]{{{cond_B_hinfw}}} & yes \\
+        \botrule
+    \end{{tabularx}}
+\end{{table}}'''  # noqa: E501
+    for target in targets:
+        with open(target, 'w') as f:
+            f.write(table)
+
+
 def faster_error(dependencies: List[pathlib.Path],
                  targets: List[pathlib.Path]) -> None:
     """Save faster timeseries plot."""
@@ -678,6 +758,7 @@ def soft_robot_error(dependencies: List[pathlib.Path],
     """Save soft robot timeseries plot."""
     deps = _open_hydra_pickles(dependencies)
     edmd = deps['soft_robot__polynomial3_delay1__edmd']
+    tik = deps['soft_robot__polynomial3_delay1__tikhonov']
     srconst = deps['soft_robot__polynomial3_delay1__srconst_0999']
     hinf = deps['soft_robot__polynomial3_delay1__hinf']
     hinfw = deps['soft_robot__polynomial3_delay1__hinfw']
@@ -695,7 +776,7 @@ def soft_robot_error(dependencies: List[pathlib.Path],
         1,
         constrained_layout=True,
         sharex=True,
-        figsize=(5, 5),
+        figsize=(7, 5),
     )
     # Plot errors
     for i in range(2):
@@ -703,21 +784,28 @@ def soft_robot_error(dependencies: List[pathlib.Path],
             t,
             (edmd[series]['X_validation'][:n_t, i + 1]
              - edmd[series]['X_prediction'][:n_t, i + 1]),
-            label='Extended DMD',
+            label='No reg.',
             color=C['edmd'],
         )
         ax[i].plot(
             t,
             (edmd[series]['X_validation'][:n_t, i + 1]
+             - tik[series]['X_prediction'][:n_t, i + 1]),
+            label='Tikh. reg',
+            color=C['tik'],
+        )
+        ax[i].plot(
+            t,
+            (edmd[series]['X_validation'][:n_t, i + 1]
              - srconst[series]['X_prediction'][:n_t, i + 1]),
-            label='A.S. constraint',
+            label='A.S. constr.',
             color=C['srconst'],
         )
         ax[i].plot(
             t,
             (edmd[series]['X_validation'][:n_t, i + 1]
              - hinf[series]['X_prediction'][:n_t, i + 1]),
-            label=f'{HINF} regularizer',
+            label=f'{HINF} reg.',
             color=C['hinf'],
         )
     # Plot inputs
@@ -758,27 +846,344 @@ def soft_robot_error(dependencies: List[pathlib.Path],
     # Create legend
     fig.legend(
         [
-            ax[1].get_lines()[0],
-            ax[2].get_lines()[0],
-            ax[1].get_lines()[1],
-            ax[2].get_lines()[1],
-            ax[1].get_lines()[2],
-            ax[2].get_lines()[2],
+            ax[1].get_lines()[0],  # No
+            ax[2].get_lines()[0],  # u1
+            ax[1].get_lines()[1],  # Tik
+            ax[2].get_lines()[1],  # u2
+            ax[1].get_lines()[2],  # A.S.
+            ax[2].get_lines()[2],  # u3
+            ax[1].get_lines()[3],  # Hinf
         ],
         [
-            'EDMD',
+            'No reg.',
             r'$u_1(t)$',
-            'A.S. constr.',
+            'Tikh. reg.',
             r'$u_2(t)$',
-            f'{HINF} reg.',
+            'A.S. constr.',
             r'$u_3(t)$',
+            f'{HINF} reg.',
         ],
         loc='upper center',
-        ncol=3,
+        ncol=4,
         bbox_to_anchor=(0.5, 0),
     )
     # Align labels
     fig.align_labels()
+    # Save targets
+    for target in targets:
+        fig.savefig(target, **SAVEFIG_PARAMS)
+
+
+def soft_robot_traj(dependencies: List[pathlib.Path],
+                    targets: List[pathlib.Path]) -> None:
+    """Save soft robot trajectory plot."""
+    deps = _open_hydra_pickles(dependencies)
+    edmd = deps['soft_robot__polynomial3_delay1__edmd']
+    tik = deps['soft_robot__polynomial3_delay1__tikhonov']
+    srconst = deps['soft_robot__polynomial3_delay1__srconst_0999']
+    hinf = deps['soft_robot__polynomial3_delay1__hinf']
+    hinfw = deps['soft_robot__polynomial3_delay1__hinfw']
+    # Select timeseries to plot
+    series = 'timeseries_15.0'
+    # Calculate time arrays
+    t_step = 1 / edmd['bode']['f_samp']
+    n_t = int(edmd[series]['X_validation'].shape[0] * 0.5)
+    # Get state dimension
+    n_x = edmd[series]['X_prediction'].shape[1] - 1
+    # Create figure
+    fig, ax = plt.subplots(constrained_layout=True, figsize=(4, 5))
+    # Plot errors
+    ax.plot(
+        edmd[series]['X_prediction'][:n_t, 1],
+        edmd[series]['X_prediction'][:n_t, 2],
+        label='No reg.',
+        color=C['edmd'],
+    )
+    ax.plot(
+        tik[series]['X_prediction'][:n_t, 1],
+        tik[series]['X_prediction'][:n_t, 2],
+        label='Tikh. reg',
+        color=C['tik'],
+    )
+    ax.plot(
+        srconst[series]['X_prediction'][:n_t, 1],
+        srconst[series]['X_prediction'][:n_t, 2],
+        label='A.S. constr.',
+        color=C['srconst'],
+    )
+    ax.plot(
+        hinf[series]['X_prediction'][:n_t, 1],
+        hinf[series]['X_prediction'][:n_t, 2],
+        label=f'{HINF} reg.',
+        color=C['hinf'],
+    )
+    ax.plot(
+        edmd[series]['X_validation'][:n_t, 1],
+        edmd[series]['X_validation'][:n_t, 2],
+        label='True',
+        color=C['true'],
+        linestyle=':',
+        marker='X',
+        markevery=(n_t - 1),
+        markersize=10,
+        markeredgecolor='w',
+    )
+    ax.text(
+        edmd[series]['X_validation'][0, 1],
+        edmd[series]['X_validation'][0, 2] - 1.2,
+        r'$t = 0\,$s',
+        # color=C['true'],
+    )
+    ax.text(
+        edmd[series]['X_validation'][n_t, 1],
+        edmd[series]['X_validation'][n_t, 2] - 1.2,
+        rf'$t = {int(n_t * t_step)}\,$s',
+        # color=C['true'],
+    )
+    # Set axis labels
+    ax.set_xlabel(r'$x_1(t)$ (cm)')
+    ax.set_ylabel(r'$x_2(t)$ (cm)')
+    # Set axis ticks
+    ax.set_xticks([0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20])
+    ax.set_yticks([2, 4, 6, 8, 10, 12, 14, 16, 18])
+    # Set axis limits
+    ax.set_xlim(0, 20)
+    ax.set_ylim(4, 18)
+    # Set aspect ratio
+    ax.set_aspect('equal', 'box')
+    # Create legend
+    fig.legend(
+        [
+            ax.get_lines()[0],  # No
+            ax.get_lines()[2],  # A.S.
+            ax.get_lines()[4],  # True
+            ax.get_lines()[1],  # Tik
+            ax.get_lines()[3],  # Hinf
+        ],
+        [
+            'No reg.',
+            'A.S. constr.',
+            'True traj.',
+            'Tikh. reg.',
+            f'{HINF} reg.',
+        ],
+        loc='upper center',
+        ncol=2,
+        bbox_to_anchor=(0.5, 0.15),
+    )
+    # Save targets
+    for target in targets:
+        fig.savefig(target, **SAVEFIG_PARAMS)
+
+
+def soft_robot_error_traj(dependencies: List[pathlib.Path],
+                          targets: List[pathlib.Path]) -> None:
+    """Save soft robot timeseries plot and error trajectory plot."""
+    deps = _open_hydra_pickles(dependencies)
+    edmd = deps['soft_robot__polynomial3_delay1__edmd']
+    tik = deps['soft_robot__polynomial3_delay1__tikhonov']
+    srconst = deps['soft_robot__polynomial3_delay1__srconst_0999']
+    hinf = deps['soft_robot__polynomial3_delay1__hinf']
+    hinfw = deps['soft_robot__polynomial3_delay1__hinfw']
+    # Select timeseries to plot
+    series = 'timeseries_15.0'
+    # Calculate time arrays
+    t_step = 1 / edmd['bode']['f_samp']
+    n_t = edmd[series]['X_validation'].shape[0]
+    t = np.arange(n_t) * t_step
+    # Get state dimension
+    n_x = edmd[series]['X_prediction'].shape[1] - 1
+
+    fig = plt.figure(constrained_layout=True, figsize=(10, 5))
+    gs = matplotlib.gridspec.GridSpec(3, 2, figure=fig)
+    ax0 = fig.add_subplot(gs[0, 0])
+    ax1 = fig.add_subplot(gs[1, 0])
+    ax2 = fig.add_subplot(gs[2, 0])
+    ax3 = fig.add_subplot(gs[:, 1])
+
+    ax0.plot(
+        t,
+        (edmd[series]['X_validation'][:n_t, 1]
+         - edmd[series]['X_prediction'][:n_t, 1]),
+        label='No reg.',
+        color=C['edmd'],
+    )
+    ax0.plot(
+        t,
+        (edmd[series]['X_validation'][:n_t, 1]
+         - tik[series]['X_prediction'][:n_t, 1]),
+        label='Tikh. reg',
+        color=C['tik'],
+    )
+    ax0.plot(
+        t,
+        (edmd[series]['X_validation'][:n_t, 1]
+         - srconst[series]['X_prediction'][:n_t, 1]),
+        label='A.S. constr.',
+        color=C['srconst'],
+    )
+    ax0.plot(
+        t,
+        (edmd[series]['X_validation'][:n_t, 1]
+         - hinf[series]['X_prediction'][:n_t, 1]),
+        label=f'{HINF} reg.',
+        color=C['hinf'],
+    )
+    ax1.plot(
+        t,
+        (edmd[series]['X_validation'][:n_t, 2]
+         - edmd[series]['X_prediction'][:n_t, 2]),
+        label='No reg.',
+        color=C['edmd'],
+    )
+    ax1.plot(
+        t,
+        (edmd[series]['X_validation'][:n_t, 2]
+         - tik[series]['X_prediction'][:n_t, 2]),
+        label='Tikh. reg',
+        color=C['tik'],
+    )
+    ax1.plot(
+        t,
+        (edmd[series]['X_validation'][:n_t, 2]
+         - srconst[series]['X_prediction'][:n_t, 2]),
+        label='A.S. constr.',
+        color=C['srconst'],
+    )
+    ax1.plot(
+        t,
+        (edmd[series]['X_validation'][:n_t, 2]
+         - hinf[series]['X_prediction'][:n_t, 2]),
+        label=f'{HINF} reg.',
+        color=C['hinf'],
+    )
+    ax2.plot(
+        t,
+        edmd[series]['X_validation'][:n_t, 3],
+        '--',
+        color=C['u1'],
+        label=r'$u_1(t)$',
+    )
+    ax2.plot(
+        t,
+        edmd[series]['X_validation'][:n_t, 4],
+        '--',
+        color=C['u2'],
+        label=r'$u_2(t)$',
+    )
+    ax2.plot(
+        t,
+        edmd[series]['X_validation'][:n_t, 5],
+        '--',
+        color=C['u3'],
+        label=r'$u_3(t)$',
+    )
+    # Set axis labels
+    ax2.set_xlabel(r'$t$ (s)')
+    ax0.set_ylabel(r'$\Delta x_1(t)$ (cm)')
+    ax1.set_ylabel(r'$\Delta x_2(t)$ (cm)')
+    ax2.set_ylabel(r'${\bf u}(t)$ (V)')
+    # Set axis limits
+    ax0.set_ylim(-5, 5)
+    ax1.set_ylim(-5, 5)
+    ax2.set_ylim(-1, 9)
+    # Set axis ticks
+    ax0.set_yticks([-4, -2, 0, 2, 4])
+    ax1.set_yticks([-4, -2, 0, 2, 4])
+    ax2.set_yticks([0, 2, 4, 6, 8])
+    ax0.set_xticks([0, 10, 20, 30, 40, 50])
+    ax1.set_xticks([0, 10, 20, 30, 40, 50])
+    ax2.set_xticks([0, 10, 20, 30, 40, 50])
+    ax0.set_xticklabels([])
+    ax1.set_xticklabels([])
+
+    n_t_traj = int(edmd[series]['X_validation'].shape[0] * 0.5)
+    ax3.plot(
+        edmd[series]['X_prediction'][:n_t_traj, 1],
+        edmd[series]['X_prediction'][:n_t_traj, 2],
+        label='No reg.',
+        color=C['edmd'],
+    )
+    ax3.plot(
+        tik[series]['X_prediction'][:n_t_traj, 1],
+        tik[series]['X_prediction'][:n_t_traj, 2],
+        label='Tikh. reg',
+        color=C['tik'],
+    )
+    ax3.plot(
+        srconst[series]['X_prediction'][:n_t_traj, 1],
+        srconst[series]['X_prediction'][:n_t_traj, 2],
+        label='A.S. constr.',
+        color=C['srconst'],
+    )
+    ax3.plot(
+        hinf[series]['X_prediction'][:n_t_traj, 1],
+        hinf[series]['X_prediction'][:n_t_traj, 2],
+        label=f'{HINF} reg.',
+        color=C['hinf'],
+    )
+    ax3.plot(
+        edmd[series]['X_validation'][:n_t_traj, 1],
+        edmd[series]['X_validation'][:n_t_traj, 2],
+        label='True',
+        color=C['true'],
+        linestyle=':',
+        marker='X',
+        markevery=(n_t_traj - 1),
+        markersize=10,
+        markeredgecolor='w',
+    )
+    ax3.text(
+        edmd[series]['X_validation'][0, 1],
+        edmd[series]['X_validation'][0, 2] - 1.2,
+        r'$t = 0\,$s',
+    )
+    ax3.text(
+        edmd[series]['X_validation'][n_t_traj, 1],
+        edmd[series]['X_validation'][n_t_traj, 2] - 1.2,
+        rf'$t = {int(n_t_traj * t_step)}\,$s',
+    )
+    # Set axis labels
+    ax3.set_xlabel(r'$x_1(t)$ (cm)')
+    ax3.set_ylabel(r'$x_2(t)$ (cm)')
+    # Set aspect ratio
+    ax3.set_aspect('equal', 'box')
+    # Set axis ticks
+    ax3.set_xticks([0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20])
+    ax3.set_yticks([0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20])
+    # Set axis limits
+    ax3.set_xlim(0, 20)
+    ax3.set_ylim(0, 20)
+
+    # Create legend
+    fig.legend(
+        [
+            ax1.get_lines()[0],  # No
+            ax2.get_lines()[0],  # u1
+            ax1.get_lines()[1],  # Tik
+            ax2.get_lines()[1],  # u2
+            ax1.get_lines()[2],  # A.S.
+            ax2.get_lines()[2],  # u3
+            ax1.get_lines()[3],  # Hinf
+            ax3.get_lines()[4],  # True
+        ],
+        [
+            'No reg.',
+            r'$u_1(t)$',
+            'Tikh. reg.',
+            r'$u_2(t)$',
+            'A.S. constr.',
+            r'$u_3(t)$',
+            f'{HINF} reg.',
+            r'Test ep. \#3',
+        ],
+        loc='upper center',
+        ncol=4,
+        bbox_to_anchor=(0.5, 0),
+    )
+    # Align labels
+    fig.align_labels()
+
     # Save targets
     for target in targets:
         fig.savefig(target, **SAVEFIG_PARAMS)
@@ -789,6 +1194,7 @@ def soft_robot_eig(dependencies: List[pathlib.Path],
     """Save soft robot eigenvalue plot."""
     deps = _open_hydra_pickles(dependencies)
     edmd = deps['soft_robot__polynomial3_delay1__edmd']
+    tik = deps['soft_robot__polynomial3_delay1__tikhonov']
     srconst = deps['soft_robot__polynomial3_delay1__srconst_0999']
     hinf = deps['soft_robot__polynomial3_delay1__hinf']
     hinfw = deps['soft_robot__polynomial3_delay1__hinfw']
@@ -811,7 +1217,15 @@ def soft_robot_eig(dependencies: List[pathlib.Path],
         np.absolute(edmd['eigenvalues']['eigv']),
         color=C['edmd'],
         marker='o',
-        label=r'Extended DMD',
+        label=r'No reg.',
+        **style,
+    )
+    ax.scatter(
+        np.angle(tik['eigenvalues']['eigv']),
+        np.absolute(tik['eigenvalues']['eigv']),
+        color=C['tik'],
+        marker='v',
+        label=r'Tikh. reg.',
         **style,
     )
     ax.scatter(
@@ -819,7 +1233,7 @@ def soft_robot_eig(dependencies: List[pathlib.Path],
         np.absolute(srconst['eigenvalues']['eigv']),
         color=C['srconst'],
         marker='s',
-        label=r'A.S. constraint',
+        label=r'A.S. constr.',
         **style,
     )
     ax.scatter(
@@ -827,7 +1241,7 @@ def soft_robot_eig(dependencies: List[pathlib.Path],
         np.absolute(hinf['eigenvalues']['eigv']),
         color=C['hinf'],
         marker='D',
-        label=f'{HINF} regularizer',
+        label=f'{HINF} reg.',
         **style,
     )
     # Create sub-axes for zoomed plot
@@ -845,7 +1259,15 @@ def soft_robot_eig(dependencies: List[pathlib.Path],
         np.absolute(edmd['eigenvalues']['eigv']),
         color=C['edmd'],
         marker='o',
-        label=r'Extended DMD',
+        label=r'No reg.',
+        **style,
+    )
+    axins.scatter(
+        np.angle(tik['eigenvalues']['eigv']),
+        np.absolute(tik['eigenvalues']['eigv']),
+        color=C['tik'],
+        marker='v',
+        label=r'Tikh reg.',
         **style,
     )
     axins.scatter(
@@ -853,7 +1275,7 @@ def soft_robot_eig(dependencies: List[pathlib.Path],
         np.absolute(srconst['eigenvalues']['eigv']),
         color=C['srconst'],
         marker='s',
-        label=r'A.S. constraint',
+        label=r'A.S. constr.',
         **style,
     )
     axins.scatter(
@@ -861,7 +1283,7 @@ def soft_robot_eig(dependencies: List[pathlib.Path],
         np.absolute(hinf['eigenvalues']['eigv']),
         color=C['hinf'],
         marker='D',
-        label=f'{HINF} regularizer',
+        label=f'{HINF} reg.',
         **style,
     )
     # Border line width and color
@@ -903,13 +1325,13 @@ def soft_robot_eig(dependencies: List[pathlib.Path],
         },
     )
     # Create legend
-    ax.legend(loc='lower left', ncol=1)
+    axins.legend(loc='upper center', ncol=2, bbox_to_anchor=(0.2, 0.2))
     # Set axis limits and ticks
     ax.set_rlim(0, 2.5)
     ax.set_yticks([0, 0.5, 1, 1.5, 2, 2.5])
     # Set axis labels
     ax.set_xlabel(r'$\mathrm{Re}\{\lambda_i\}$')
-    ax.set_ylabel(r'$\mathrm{Im}\{\lambda_i\}$', labelpad=25)
+    ax.set_ylabel(r'$\mathrm{Im}\{\lambda_i\}$', labelpad=30)
     # Save targets
     for target in targets:
         fig.savefig(target, **SAVEFIG_PARAMS)
@@ -920,6 +1342,7 @@ def soft_robot_bode(dependencies: List[pathlib.Path],
     """Save soft robot bode plot."""
     deps = _open_hydra_pickles(dependencies)
     edmd = deps['soft_robot__polynomial3_delay1__edmd']
+    tik = deps['soft_robot__polynomial3_delay1__tikhonov']
     srconst = deps['soft_robot__polynomial3_delay1__srconst_0999']
     hinf = deps['soft_robot__polynomial3_delay1__hinf']
     hinfw = deps['soft_robot__polynomial3_delay1__hinfw']
@@ -929,19 +1352,25 @@ def soft_robot_bode(dependencies: List[pathlib.Path],
     ax.semilogx(
         edmd['bode']['f_plot'],
         edmd['bode']['mag_db'],
-        label='Extended DMD',
+        label='No reg.',
         color=C['edmd'],
+    )
+    ax.semilogx(
+        tik['bode']['f_plot'],
+        tik['bode']['mag_db'],
+        label='Tikh. reg.',
+        color=C['tik'],
     )
     ax.semilogx(
         srconst['bode']['f_plot'],
         srconst['bode']['mag_db'],
-        label='A.S. constraint',
+        label='A.S. constr.',
         color=C['srconst'],
     )
     ax.semilogx(
         hinf['bode']['f_plot'],
         hinf['bode']['mag_db'],
-        label=f'{HINF} regularizer',
+        label=f'{HINF} reg.',
         color=C['hinf'],
     )
     # Create legend
@@ -949,7 +1378,7 @@ def soft_robot_bode(dependencies: List[pathlib.Path],
     # Set axis labels and limits
     ax.set_xlabel(r'$f$ (Hz)')
     ax.set_ylabel(r'$\bar{\sigma}\left({\bf G}(e^{j \theta})\right)$ (dB)')
-    ax.set_ylim(10, 150)
+    ax.set_ylim(10, 170)
     # Save targets
     for target in targets:
         fig.savefig(target, **SAVEFIG_PARAMS)
@@ -960,11 +1389,13 @@ def soft_robot_svd(dependencies: List[pathlib.Path],
     """Save soft robot SVD plot."""
     deps = _open_hydra_pickles(dependencies)
     edmd = deps['soft_robot__polynomial3_delay1__edmd']
+    tik = deps['soft_robot__polynomial3_delay1__tikhonov']
     srconst = deps['soft_robot__polynomial3_delay1__srconst_0999']
     hinf = deps['soft_robot__polynomial3_delay1__hinf']
     hinfw = deps['soft_robot__polynomial3_delay1__hinfw']
     # Calculate singular values of ``A`` and ``B``
     sv_A_edmd, sv_B_edmd = _calc_sv(edmd['matshow']['U'])
+    sv_A_tik, sv_B_tik = _calc_sv(tik['matshow']['U'])
     sv_A_srconst, sv_B_srconst = _calc_sv(srconst['matshow']['U'])
     sv_A_hinf, sv_B_hinf = _calc_sv(hinf['matshow']['U'])
     sv_A_hinfw, sv_B_hinfw = _calc_sv(hinfw['matshow']['U'])
@@ -977,25 +1408,52 @@ def soft_robot_svd(dependencies: List[pathlib.Path],
         figsize=(10, 5),
     )
     # Plot singular values of ``A``
-    ax[0].semilogy(sv_A_edmd, marker='.', color=C['edmd'])
-    ax[0].semilogy(sv_A_srconst, marker='.', color=C['srconst'])
-    ax[0].semilogy(sv_A_hinf, marker='.', color=C['hinf'])
+    ax[0].semilogy(
+        sv_A_edmd,
+        label='No reg.',
+        marker='.',
+        color=C['edmd'],
+    )
+    ax[0].semilogy(
+        sv_A_tik,
+        label='Tikh. reg.',
+        marker='.',
+        color=C['tik'],
+    )
+    ax[0].semilogy(
+        sv_A_srconst,
+        label='A.S. constr.',
+        marker='.',
+        color=C['srconst'],
+    )
+    ax[0].semilogy(
+        sv_A_hinf,
+        label=f'{HINF} reg.',
+        marker='.',
+        color=C['hinf'],
+    )
     # Plot singular values of ``B``
     ax[1].semilogy(
         sv_B_edmd,
-        label='Extended DMD',
+        label='No reg.',
         marker='.',
         color=C['edmd'],
     )
     ax[1].semilogy(
+        sv_B_tik,
+        label='Tikh. reg.',
+        marker='.',
+        color=C['tik'],
+    )
+    ax[1].semilogy(
         sv_B_srconst,
-        label='A.S. constraint',
+        label='A.S. constr.',
         marker='.',
         color=C['srconst'],
     )
     ax[1].semilogy(
         sv_B_hinf,
-        label=f'{HINF} regularizer',
+        label=f'{HINF} reg.',
         marker='.',
         color=C['hinf'],
     )
@@ -1003,7 +1461,7 @@ def soft_robot_svd(dependencies: List[pathlib.Path],
     ax[0].set_ylim(10**-6, 10**4)
     ax[0].set_yticks([10**n for n in range(-6, 5)])
     # Create legend
-    ax[1].legend(loc='lower right')
+    ax[0].legend(loc='lower left')
     # Set axis labels
     ax[0].set_xlabel(r'$i$')
     ax[0].set_ylabel(r'$\sigma_i(\bf{A})$')
@@ -1049,9 +1507,9 @@ def soft_robot_weights(dependencies: List[pathlib.Path],
     ax1.set_ylabel(r'$\bar{\sigma}\left({\bf G}(e^{j \theta})\right)$ (dB)')
     ax2.set_ylabel(r'Weight magnitude (dB)')
     # Set axis limits
-    b1 = 14  # Lower limit of right axis
+    b1 = 24  # Lower limit of right axis
     b2 = -4  # Lower limit of left axis
-    n = 16  # Number of dB in the axis limits
+    n = 18  # Number of dB in the axis limits
     ax1.set_ylim(b1, b1 + n)
     ax2.set_ylim(b2, b2 + n)
     # Set ticks, making sure they're the same for both axes
@@ -1086,12 +1544,14 @@ def soft_robot_scatter_by_method(dependencies: List[pathlib.Path],
     """Save soft robot bar chart grouped by method."""
     deps = _open_hydra_pickles(dependencies)
     edmd = deps['soft_robot__polynomial3_delay1__edmd']
+    tik = deps['soft_robot__polynomial3_delay1__tikhonov']
     srconst = deps['soft_robot__polynomial3_delay1__srconst_0999']
     hinf = deps['soft_robot__polynomial3_delay1__hinf']
     hinfw = deps['soft_robot__polynomial3_delay1__hinfw']
     # Construct dataframe with RMS errors
     errors = pandas.DataFrame({
-        'EDMD': _calc_rmse(edmd),
+        'No reg.': _calc_rmse(edmd),
+        'Tikh. reg.': _calc_rmse(tik),
         'A.S. constr.': _calc_rmse(srconst),
         f'{HINF} reg.': _calc_rmse(hinf),
         f'W. {HINF} reg.': _calc_rmse(hinfw),
@@ -1099,13 +1559,13 @@ def soft_robot_scatter_by_method(dependencies: List[pathlib.Path],
     means = errors.mean()
     std = errors.std()
     # Create figure
-    fig, ax = plt.subplots(constrained_layout=True, figsize=(5, 5))
+    fig, ax = plt.subplots(constrained_layout=True, figsize=(7.5, 5))
     # Column colors
-    c = [C['edmd'], C['srconst'], C['hinf'], C['hinfw']]
+    c = [C['edmd'], C['tik'], C['srconst'], C['hinf'], C['hinfw']]
     # Mean and shifted tick locations
-    x = np.array([0, 1, 2, 3])
-    xm = x - 0.05
-    xp = x + 0.05
+    x = np.array([0, 1, 2, 3, 4])
+    xm = x - 0.075
+    xp = x + 0.075
     # Plot error bars
     ax.errorbar(
         xp,
@@ -1126,24 +1586,45 @@ def soft_robot_scatter_by_method(dependencies: List[pathlib.Path],
     }
     # Plot scatter plots
     ax.scatter(x=xm, y=errors.iloc[0, :], c=c, marker='o', **style)
-    ax.scatter(x=xm, y=errors.iloc[1, :], c=c, marker='s', **style)
-    ax.scatter(x=xm, y=errors.iloc[2, :], c=c, marker='D', **style)
-    ax.scatter(x=xm, y=errors.iloc[3, :], c=c, marker='P', **style)
+    ax.scatter(x=xm, y=errors.iloc[1, :], c=c, marker='v', **style)
+    ax.scatter(x=xm, y=errors.iloc[2, :], c=c, marker='s', **style)
+    ax.scatter(x=xm, y=errors.iloc[3, :], c=c, marker='D', **style)
     # Plot invisible points for use in legend
-    ax.scatter(x=-1, y=-1, c='k', marker='o', label=r'Valid. ep. \#1', **style)
-    ax.scatter(x=-1, y=-1, c='k', marker='s', label=r'Valid. ep. \#2', **style)
-    ax.scatter(x=-1, y=-1, c='k', marker='D', label=r'Valid. ep. \#3', **style)
-    ax.scatter(x=-1, y=-1, c='k', marker='P', label=r'Valid. ep. \#4', **style)
+    ax.scatter(x=-1, y=-1, c='k', marker='o', label=r'Test ep. \#1', **style)
+    ax.scatter(x=-1, y=-1, c='k', marker='v', label=r'Test ep. \#2', **style)
+    ax.scatter(x=-1, y=-1, c='k', marker='s', label=r'Test ep. \#3', **style)
+    ax.scatter(x=-1, y=-1, c='k', marker='D', label=r'Test ep. \#4', **style)
     # Set labels
     ax.set_xlabel('Regression method')
     ax.set_ylabel('RMS Euclidean error (cm)')
     # Set limits and ticks
-    ax.set_ylim(0, 1.6)
-    ax.set_xlim(-0.5, 3.5)
+    ax.set_ylim(0, 1.3)
+    ax.set_xlim(-0.5, 4.5)
     ax.set_xticks(x)
-    ax.set_xticklabels([errors.columns[i] for i in range(len(x))])
+    ax.set_xticklabels(
+        [errors.columns[i] for i in range(len(x))],
+        rotation=30,
+        rotation_mode='anchor',
+        ha='right',
+    )
     # Create legend
-    ax.legend(loc='upper right')
+    fig.legend(
+        [
+            ax.get_children()[2],
+            ax.get_children()[4],
+            ax.get_children()[3],
+            ax.get_children()[5],
+        ],
+        [
+            r'Test ep. \# 1',
+            r'Test ep. \# 3',
+            r'Test ep. \# 2',
+            r'Test ep. \# 4',
+        ],
+        loc='upper center',
+        ncol=2,
+        bbox_to_anchor=(0.5, 0),
+    )
     # Save targets
     for target in targets:
         fig.savefig(target, **SAVEFIG_PARAMS)
@@ -1159,10 +1640,10 @@ def soft_robot_scatter_dmdc(dependencies: List[pathlib.Path],
     hinf_dmdc = deps['soft_robot__polynomial3_delay1__hinf_dmdc']
     # Construct dataframe with RMS errors
     errors = pandas.DataFrame({
-        'EDMD,\nA.S. constr.': _calc_rmse(srconst),
-        'DMDc,\nA.S. constr.': _calc_rmse(srconst_dmdc),
-        f'EDMD,\n{HINF} reg.': _calc_rmse(hinf),
-        f'DMDc,\n{HINF} reg.': _calc_rmse(hinf_dmdc),
+        'A.S. constr.\nEDMD': _calc_rmse(srconst),
+        'A.S. constr.\nDMDc': _calc_rmse(srconst_dmdc),
+        f'{HINF} reg.\nEDMD': _calc_rmse(hinf),
+        f'{HINF} reg.\nDMDc': _calc_rmse(hinf_dmdc),
     })
     means = errors.mean()
     std = errors.std()
@@ -1172,8 +1653,8 @@ def soft_robot_scatter_dmdc(dependencies: List[pathlib.Path],
     c = [C['srconst'], C['srconst_dmdc'], C['hinf'], C['hinf_dmdc']]
     # Mean and shifted tick locations
     x = np.array([0, 1, 2, 3])
-    xm = x - 0.05
-    xp = x + 0.05
+    xm = x - 0.075
+    xp = x + 0.075
     # Plot error bars
     ax.errorbar(
         xp,
@@ -1194,24 +1675,45 @@ def soft_robot_scatter_dmdc(dependencies: List[pathlib.Path],
     }
     # Plot scatter plots
     ax.scatter(x=xm, y=errors.iloc[0, :], c=c, marker='o', **style)
-    ax.scatter(x=xm, y=errors.iloc[1, :], c=c, marker='s', **style)
-    ax.scatter(x=xm, y=errors.iloc[2, :], c=c, marker='D', **style)
-    ax.scatter(x=xm, y=errors.iloc[3, :], c=c, marker='P', **style)
+    ax.scatter(x=xm, y=errors.iloc[1, :], c=c, marker='v', **style)
+    ax.scatter(x=xm, y=errors.iloc[2, :], c=c, marker='s', **style)
+    ax.scatter(x=xm, y=errors.iloc[3, :], c=c, marker='D', **style)
     # Plot invisible points for use in legend
-    ax.scatter(x=-1, y=-1, c='k', marker='o', label=r'Valid. ep. \#1', **style)
-    ax.scatter(x=-1, y=-1, c='k', marker='s', label=r'Valid. ep. \#2', **style)
-    ax.scatter(x=-1, y=-1, c='k', marker='D', label=r'Valid. ep. \#3', **style)
-    ax.scatter(x=-1, y=-1, c='k', marker='P', label=r'Valid. ep. \#4', **style)
+    ax.scatter(x=-1, y=-1, c='k', marker='o', label=r'Test ep. \#1', **style)
+    ax.scatter(x=-1, y=-1, c='k', marker='v', label=r'Test ep. \#2', **style)
+    ax.scatter(x=-1, y=-1, c='k', marker='s', label=r'Test ep. \#3', **style)
+    ax.scatter(x=-1, y=-1, c='k', marker='D', label=r'Test ep. \#4', **style)
     # Set labels
     ax.set_xlabel('Regression method')
     ax.set_ylabel('RMS Euclidean error (cm)')
     # Set limits and ticks
-    ax.set_ylim(0, 2.25)
+    ax.set_ylim(0, 1.9)
     ax.set_xlim(-0.5, 3.5)
     ax.set_xticks(x)
-    ax.set_xticklabels([errors.columns[i] for i in range(len(x))])
+    ax.set_xticklabels(
+        [errors.columns[i] for i in range(len(x))],
+        rotation=30,
+        rotation_mode='anchor',
+        ha='right',
+    )
     # Create legend
-    ax.legend(loc='upper right')
+    fig.legend(
+        [
+            ax.get_children()[2 + 4],
+            ax.get_children()[4 + 4],
+            ax.get_children()[3 + 4],
+            ax.get_children()[5 + 4],
+        ],
+        [
+            r'Test ep. \# 1',
+            r'Test ep. \# 3',
+            r'Test ep. \# 2',
+            r'Test ep. \# 4',
+        ],
+        loc='upper center',
+        ncol=2,
+        bbox_to_anchor=(0.5, 0),
+    )
     # Save targets
     for target in targets:
         fig.savefig(target, **SAVEFIG_PARAMS)
@@ -1247,25 +1749,25 @@ def soft_robot_dmdc_svd(dependencies: List[pathlib.Path],
     # Plot singular values of ``B``
     ax[1].semilogy(
         sv_B_srconst,
-        label='EDMD, A.S. constr.',
+        label='A.S. constr. EDMD',
         marker='.',
         color=C['srconst'],
     )
     ax[1].semilogy(
-        sv_B_hinf,
-        label=f'EDMD, {HINF} reg.',
-        marker='.',
-        color=C['hinf'],
-    )
-    ax[1].semilogy(
         sv_B_srconst_dmdc,
-        label='DMDc, A.S. constr.',
+        label='A.S. constr. DMDc',
         marker='.',
         color=C['srconst_dmdc'],
     )
     ax[1].semilogy(
+        sv_B_hinf,
+        label=f'{HINF} reg. EDMD',
+        marker='.',
+        color=C['hinf'],
+    )
+    ax[1].semilogy(
         sv_B_hinf_dmdc,
-        label=f'DMDc, {HINF} reg.',
+        label=f'{HINF} reg. DMDc',
         marker='.',
         color=C['hinf_dmdc'],
     )
@@ -1293,37 +1795,57 @@ def soft_robot_dmdc_bode(dependencies: List[pathlib.Path],
     hinf = deps['soft_robot__polynomial3_delay1__hinf']
     hinf_dmdc = deps['soft_robot__polynomial3_delay1__hinf_dmdc']
     # Create figure
-    fig, ax = plt.subplots(constrained_layout=True, figsize=(5, 5))
+    fig, ax = plt.subplots(
+        constrained_layout=True,
+        # Stupid hack to make image size match with DMDc scatter plot
+        figsize=(5, 5 * (544 / 511)),
+    )
     ax.semilogx(
         srconst['bode']['f_plot'],
         srconst['bode']['mag_db'],
-        label='EDMD, A.S. constr.',
+        label='A.S. constr. EDMD',
         color=C['srconst'],
-    )
-    ax.semilogx(
-        hinf['bode']['f_plot'],
-        hinf['bode']['mag_db'],
-        label=f'EDMD, {HINF} reg.',
-        color=C['hinf'],
     )
     ax.semilogx(
         srconst_dmdc['bode']['f_plot'],
         srconst_dmdc['bode']['mag_db'],
-        label='DMDc, A.S. constr.',
+        label='A.S. constr. DMDc',
         color=C['srconst_dmdc'],
+    )
+    ax.semilogx(
+        hinf['bode']['f_plot'],
+        hinf['bode']['mag_db'],
+        label=f'{HINF} reg. EDMD',
+        color=C['hinf'],
     )
     ax.semilogx(
         hinf_dmdc['bode']['f_plot'],
         hinf_dmdc['bode']['mag_db'],
-        label=f'DMDc, {HINF} reg.',
+        label=f'{HINF} reg. DMDc',
         color=C['hinf_dmdc'],
     )
     # Create legend
-    ax.legend(loc='upper right')
+    fig.legend(
+        [
+            ax.get_lines()[0],
+            ax.get_lines()[2],
+            ax.get_lines()[1],
+            ax.get_lines()[3],
+        ],
+        [
+            'A.S. constr. EDMD',
+            f'{HINF} reg. EDMD',
+            'A.S. constr. DMDc',
+            f'{HINF} reg. DMDc',
+        ],
+        loc='upper center',
+        ncol=2,
+        bbox_to_anchor=(0.5, 0),
+    )
     # Set axis labels and limits
     ax.set_xlabel('$f$ (Hz)')
     ax.set_ylabel(r'$\bar{\sigma}\left({\bf G}(e^{j \theta})\right)$ (dB)')
-    ax.set_ylim(10, 150)
+    ax.set_ylim(10, 110)
     # Save targets
     for target in targets:
         fig.savefig(target, **SAVEFIG_PARAMS)
@@ -1340,10 +1862,10 @@ def soft_robot_ram(dependencies: List[pathlib.Path],
     # Create dataframe
     stats = pandas.DataFrame({
         'label': [
-            'EDMD,\nA.S. constr.',
-            'DMDc,\nA.S. constr.',
-            f'EDMD,\n{HINF} reg.',
-            f'DMDc,\n{HINF} reg.',
+            'A.S. constr.\nEDMD',
+            'A.S. constr.\nDMDc',
+            f'{HINF} reg.\nEDMD',
+            f'{HINF} reg.\nDMDc',
         ],
         'ram': [
             srconst[0],
@@ -1374,6 +1896,17 @@ def soft_robot_ram(dependencies: List[pathlib.Path],
     # Set axis labels
     ax.set_xlabel('Regression method')
     ax.set_ylabel('Peak memory consumption (GiB)')
+    ax.set_xticklabels(
+        [
+            'A.S. constr.\nEDMD',
+            'A.S. constr.\nDMDc',
+            f'{HINF} reg.\nEDMD',
+            f'{HINF} reg.\nDMDc',
+        ],
+        rotation=30,
+        rotation_mode='anchor',
+        ha='right',
+    )
     # Save targets
     for target in targets:
         fig.savefig(target, **SAVEFIG_PARAMS)
@@ -1390,10 +1923,10 @@ def soft_robot_exec(dependencies: List[pathlib.Path],
     # Create dataframe
     stats = pandas.DataFrame({
         'label': [
-            'EDMD,\nA.S. constr.',
-            'DMDc,\nA.S. constr.',
-            f'EDMD,\n{HINF} reg.',
-            f'DMDc,\n{HINF} reg.',
+            'A.S. constr.\nEDMD',
+            'A.S. constr.\nDMDc',
+            f'{HINF} reg.\nEDMD',
+            f'{HINF} reg.\nDMDc',
         ],
         'time': [
             srconst[1],
@@ -1424,6 +1957,17 @@ def soft_robot_exec(dependencies: List[pathlib.Path],
     # Set axis labels
     ax.set_xlabel('Regression method')
     ax.set_ylabel('Execution time per iteration (min)')
+    ax.set_xticklabels(
+        [
+            'A.S. constr.\nEDMD',
+            'A.S. constr.\nDMDc',
+            f'{HINF} reg.\nEDMD',
+            f'{HINF} reg.\nDMDc',
+        ],
+        rotation=30,
+        rotation_mode='anchor',
+        ha='right',
+    )
     # Save targets
     for target in targets:
         fig.savefig(target, **SAVEFIG_PARAMS)
@@ -1787,7 +2331,7 @@ def _faster_tikz_lifted_3(dependencies: List[pathlib.Path],
     start = n_t * segment
     stop = n_t * (segment + 1)
     lf = (5 * unconst['timeseries_1.0']['X_validation'][start:stop, 1]
-            * unconst['timeseries_1.0']['X_validation'][start:stop, 2])
+          * unconst['timeseries_1.0']['X_validation'][start:stop, 2])
     carr = cmcrameri.cm.batlow(lf / 5 + 0.5)
     ax.scatter(t, lf, c=carr, s=3)
     ax.grid(False)
@@ -1875,7 +2419,8 @@ def faster_tikz_bode(dependencies: List[pathlib.Path],
     ax.text(
         x=8,
         y=peak - 6,
-        s=r'$\|\boldsymbol{\mathcal{G}}\|_\infty$',
+        s=(r'$\|\boldsymbol{\mathcal{G}}\|_\infty$'
+           if usetex else r'$\|{\bf \mathcal{G}}\|_\infty$'),
         color=C['tikz_hinf'],
         fontsize='x-large',
     )
@@ -1919,6 +2464,30 @@ def _calc_sv(U: np.ndarray,
     sv_A = linalg.svdvals(A)
     sv_B = linalg.svdvals(B)
     return (sv_A[sv_A > tol], sv_B[sv_B > tol])
+
+
+def _calc_cond(U: np.ndarray) -> Tuple[float, float, float]:
+    """Calculate condition numbers of Koopman matrix.
+
+    Parameters
+    ----------
+    U : np.ndarray
+        Koopman matrix.
+
+    Returns
+    -------
+    Tuple[float, float, float]
+        Condition numbers of ``A``, ``B``, and ``U``.
+    """
+    nx = U.shape[0]
+    # Extract ``A`` and ``B``
+    A = U[:, :nx]
+    B = U[:, nx:]
+    # Compute SVDs
+    cond_A = np.linalg.cond(A)
+    cond_B = np.linalg.cond(B)
+    cond_U = np.linalg.cond(U)
+    return (cond_A, cond_B, cond_U)
 
 
 def _calc_rmse(loaded_pickle: Dict[str, Any]) -> List[float]:
@@ -2018,4 +2587,5 @@ def _open_hydra_pickles(paths: List[pathlib.Path]) -> Dict[str, Any]:
         with open(path, 'rb') as f:
             opened_pickle = pickle.load(f)
         loaded_data[name] = opened_pickle
+    return loaded_data
     return loaded_data

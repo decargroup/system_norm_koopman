@@ -2,14 +2,14 @@
 # bilinear matrix inequalities).
 
 # Maximum number of iterations
-max_iter: 100
+max_iter: 10
 
 # Tolerance for strict of LMI constraints
 picos_eps: 1e-5
 
 # Absolute tolerance for objective cost change. Iteration stops when the change
-# in objectiv function is less than this value.
-iter_atol: 1e-6
+# in objective function is less than this value.
+iter_atol: 0
 
 # Parameters for the SDP solver. Sets solver (MOSEK), dualization, verbosity,
 # number of threads, and solver tolerances for feasibility and optimality.
