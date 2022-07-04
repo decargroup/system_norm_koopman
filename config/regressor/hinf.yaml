@@ -7,7 +7,7 @@
 # is roughly equivalent to the following code::
 #
 #     pykoop.lmi_regressors.LmiEdmdHinfReg(
-#         alpha=1e-3,
+#         alpha=7.5e-3,
 #         ratio=1,
 #         inv_method='svd',
 #         # ... plus other settings from ``iter_regressor_base``...

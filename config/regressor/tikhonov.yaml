@@ -3,7 +3,7 @@
 # This config specifies a regressor that is directly instantiated by Hydra. It
 # is roughly equivalent to the following code::
 #
-#     pykoop.Edmd(alpha=1e-3)
+#     pykoop.Edmd(alpha=7.5e-3)
 #
 # Details: https://hydra.cc/docs/advanced/instantiate_objects/overview/
 
