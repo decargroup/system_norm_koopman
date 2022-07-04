@@ -589,9 +589,9 @@ def table(dependencies: List[pathlib.Path],
     # Create table
     opts = 'exponent-mode=scientific, round-mode=places, round-precision=2'
     table = rf'''\begin{{table}}[htbp]
-    \caption{{}}
-    \label{{tab:cond}}
+    \caption{{}}\label{{tab:cond}}
     \centering
+    \setlength{{\tabcolsep}}{{12pt}}
     \def\arraystretch{{1.1}}
     \begin{{tabularx}}{{\linewidth}}{{llll}}
         \toprule
